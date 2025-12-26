@@ -12,3 +12,5 @@ router.post('/rewards/:rewardId/claim', authenticate, rewardController.claimRewa
 export default router;
 
 
+
+

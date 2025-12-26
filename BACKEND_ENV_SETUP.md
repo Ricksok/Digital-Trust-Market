@@ -150,3 +150,5 @@ docker-compose exec backend npx prisma db pull
 - ✅ Already updated to PostgreSQL!
 - ⚠️ Just need to create fresh migrations (existing ones are SQLite-specific)
 
+
+

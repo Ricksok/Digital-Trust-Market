@@ -101,3 +101,5 @@ docker-compose up -d postgres
 # Fix TypeScript errors first, then retry migrations
 ```
 
+
+

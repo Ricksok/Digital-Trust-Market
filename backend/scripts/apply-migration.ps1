@@ -10,3 +10,5 @@ npx prisma generate
 Write-Host "✅ Migration complete! You can now restart the dev server." -ForegroundColor Green
 
 
+
+

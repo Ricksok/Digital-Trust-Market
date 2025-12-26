@@ -33,3 +33,5 @@ echo "🚀 Starting application..."
 exec "$@"
 
 
+
+

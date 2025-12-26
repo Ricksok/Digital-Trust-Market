@@ -299,3 +299,5 @@ export default function ProjectsPage() {
 5. **Easier Testing** - Mockable stores and queries
 6. **Real-time Ready** - Easy WebSocket integration
 
+
+

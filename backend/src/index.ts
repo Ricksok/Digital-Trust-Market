@@ -24,6 +24,8 @@ import tokenRoutes from './routes/token.routes';
 import governanceRoutes from './routes/governance.routes';
 import stakingRoutes from './routes/staking.routes';
 import rewardRoutes from './routes/reward.routes';
+import regulatoryReportingRoutes from './routes/regulatory-reporting.routes';
+import investorReportingRoutes from './routes/investor-reporting.routes';
 
 dotenv.config();
 
@@ -85,6 +87,8 @@ app.use('/api/tokens', tokenRoutes);
 app.use('/api/governance', governanceRoutes);
 app.use('/api/staking', stakingRoutes);
 app.use('/api/rewards', rewardRoutes);
+app.use('/api/regulatory-reporting', regulatoryReportingRoutes);
+app.use('/api/investor-reporting', investorReportingRoutes);
 
 // Error handling
 app.use(errorHandler);

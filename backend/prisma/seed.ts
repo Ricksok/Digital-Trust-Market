@@ -1622,6 +1622,384 @@ async function main() {
   }
   console.log(`✅ Created ${rewards.length} reward distributions`);
 
+  // ============================================
+  // Enhanced Seed Data for Comprehensive Testing
+  // ============================================
+
+  // Create more diverse auction scenarios
+  console.log('\n📊 Creating additional auction scenarios...');
+  const additionalAuctions: any[] = [];
+  
+  // Add SUPPLY_CONTRACT and TRADE_SERVICE auctions
+  const additionalAuctionTypes = ['SUPPLY_CONTRACT', 'TRADE_SERVICE'];
+  for (let i = 0; i < 2; i++) {
+    const auctionType = additionalAuctionTypes[i];
+    const project = projects[i % projects.length];
+    
+    const auction = await prisma.auction.create({
+      data: {
+        auctionType,
+        projectId: project.id,
+        title: `${auctionType} Auction: ${project.title}`,
+        description: `Reverse auction for ${auctionType.toLowerCase().replace('_', ' ')}`,
+        targetAmount: project.targetAmount * 0.5,
+        reservePrice: project.targetAmount * 0.1,
+        currency: 'KES',
+        startTime: new Date(now.getTime() - (i * 3 * 24 * 60 * 60 * 1000)),
+        endTime: new Date(now.getTime() + (7 - i * 3) * 24 * 60 * 60 * 1000),
+        status: i === 0 ? 'CLOSED' : 'ACTIVE',
+        minTrustScore: 60,
+        trustWeight: 1.1,
+        clearingMethod: 'FIRST_PRICE',
+        clearedPrice: i === 0 ? project.targetAmount * 0.45 : null,
+        clearedAt: i === 0 ? new Date() : null,
+        metadata: JSON.stringify({ type: auctionType, generated: true }),
+      },
+    });
+    additionalAuctions.push(auction);
+
+    // Add bids for closed auction
+    if (i === 0) {
+      const bidders = investors.filter((inv) => inv.isVerified).slice(0, 2);
+      for (let j = 0; j < bidders.length; j++) {
+        const bidder = bidders[j];
+        const trustScore = await prisma.trustScore.findUnique({
+          where: { entityId: bidder.id },
+        });
+        const bidPrice = auction.reservePrice! * (1.1 - j * 0.05);
+        const effectiveBid = bidPrice * auction.trustWeight * ((trustScore?.trustScore || 50) / 100);
+
+        await prisma.bid.create({
+          data: {
+            auctionId: auction.id,
+            bidderId: bidder.id,
+            price: bidPrice,
+            amount: auction.targetAmount! * 0.3,
+            status: j === 0 ? 'WINNING' : 'OUTBID',
+            bidderTrustScore: trustScore?.trustScore || 50,
+            effectiveBid,
+            submittedAt: new Date(auction.startTime.getTime() + (j * 2 * 60 * 60 * 1000)),
+          },
+        });
+      }
+    }
+  }
+  console.log(`✅ Created ${additionalAuctions.length} additional auctions`);
+
+  // Create more diverse investment scenarios
+  console.log('\n💰 Creating additional investment scenarios...');
+  const additionalInvestments: Investment[] = [];
+  
+  // Add investments with different statuses
+  const allInvestorsCombined = [...investors, ...additionalInvestors];
+  const statusScenarios = [
+    { status: InvestmentStatus.RELEASED, count: 2 },
+    { status: InvestmentStatus.REFUNDED, count: 1 },
+    { status: InvestmentStatus.CANCELLED, count: 1 },
+  ];
+
+  for (const scenario of statusScenarios) {
+    for (let i = 0; i < scenario.count && i < projects.length; i++) {
+      const project = projects[i];
+      const investor = allInvestorsCombined[i % allInvestorsCombined.length];
+      
+      const investment = await prisma.investment.create({
+        data: {
+          investorId: investor.id,
+          projectId: project.id,
+          amount: project.minInvestment * (2 + i),
+          status: scenario.status,
+          transactionHash: `0x${Math.random().toString(16).substring(2, 66)}`,
+          notes: `Test investment with status ${scenario.status}`,
+        },
+      });
+      additionalInvestments.push(investment);
+
+      // Create escrow for RELEASED investments
+      if (scenario.status === InvestmentStatus.RELEASED) {
+        await prisma.escrowContract.create({
+          data: {
+            investmentId: investment.id,
+            projectId: project.id,
+            contractAddress: `0x${Math.random().toString(16).substring(2, 42)}`,
+            amount: investment.amount,
+            status: EscrowStatus.RELEASED,
+            releaseConditions: JSON.stringify({ milestone: 'Project milestone completed', percentage: 100 }),
+            releasedAt: new Date(now.getTime() - (i * 5 * 24 * 60 * 60 * 1000)),
+          },
+        });
+      }
+
+      // Create payment for all investments
+      await prisma.payment.create({
+        data: {
+          userId: investor.id,
+          investmentId: investment.id,
+          amount: investment.amount,
+          currency: 'KES',
+          status: scenario.status === InvestmentStatus.CANCELLED ? PaymentStatus.FAILED : 
+                  scenario.status === InvestmentStatus.REFUNDED ? PaymentStatus.REFUNDED :
+                  PaymentStatus.COMPLETED,
+          paymentMethod: 'BANK_TRANSFER',
+          transactionId: `TXN${Date.now()}${i}`,
+          gatewayResponse: JSON.stringify({ provider: 'demo', status: scenario.status === InvestmentStatus.CANCELLED ? 'failed' : 'success' }),
+        },
+      });
+    }
+  }
+  console.log(`✅ Created ${additionalInvestments.length} additional investments with diverse statuses`);
+
+  // Create more guarantee allocations
+  console.log('\n🛡️ Creating guarantee allocations...');
+  const guaranteeAllocations: any[] = [];
+  
+  for (let i = 0; i < Math.min(3, guaranteeRequests.length); i++) {
+    const request = guaranteeRequests[i];
+    if (request.status === 'AUCTION_ACTIVE' || request.status === 'ALLOCATED') {
+      const guarantor = investors.filter((inv) => inv.isVerified)[i % 3];
+      const guarantorScore = await prisma.guarantorScore.findUnique({
+        where: { entityId: guarantor.id },
+      });
+
+      const allocation = await prisma.guaranteeAllocation.create({
+        data: {
+          guaranteeRequestId: request.id,
+          guarantorId: guarantor.id,
+          coveragePercent: request.requestedCoverage * 0.8,
+          feePercent: 2.5 + (i * 0.5),
+          layer: i === 0 ? 'FIRST_LOSS' : i === 1 ? 'MEZZANINE' : 'SENIOR',
+          amount: request.amount * 0.8,
+          status: i === 0 ? 'ACTIVE' : i === 1 ? 'DRAWN' : 'EXPIRED',
+          allocatedAt: new Date(now.getTime() - (i * 10 * 24 * 60 * 60 * 1000)),
+          expiresAt: new Date(now.getTime() + (30 - i * 10) * 24 * 60 * 60 * 1000),
+          metadata: JSON.stringify({ generated: true, guarantorTrustScore: guarantorScore?.guaranteeTrustScore || 70 }),
+        },
+      });
+      guaranteeAllocations.push(allocation);
+    }
+  }
+  console.log(`✅ Created ${guaranteeAllocations.length} guarantee allocations`);
+
+  // Create token transactions
+  console.log('\n🪙 Creating token transactions...');
+  const tokenTransactions: any[] = [];
+  const utilToken = tokens.find((t) => t.symbol === 'BTA-UTIL');
+  const govTokenForTx = tokens.find((t) => t.symbol === 'BTA-GOV');
+
+  if (utilToken && govTokenForTx) {
+    const transactionTypes = ['TRANSFER', 'MINT', 'BURN'];
+    const activeUsers = allUsers.filter((u) => u.isVerified).slice(0, 10);
+
+    for (let i = 0; i < 15; i++) {
+      const sender = activeUsers[i % activeUsers.length];
+      const receiver = activeUsers[(i + 1) % activeUsers.length];
+      const transactionType = transactionTypes[i % transactionTypes.length];
+      const token = i % 2 === 0 ? utilToken : govTokenForTx;
+      const amount = 1000 + (i * 100);
+
+      const transaction = await prisma.tokenTransaction.create({
+        data: {
+          tokenId: token.id,
+          fromEntityId: transactionType === 'MINT' ? null : sender.id,
+          toEntityId: transactionType === 'BURN' ? null : receiver.id,
+          amount,
+          transactionType,
+          status: 'CONFIRMED',
+          transactionHash: `0x${Math.random().toString(16).substring(2, 66)}`,
+          blockNumber: 1000000 + i,
+          metadata: JSON.stringify({ generated: true, test: true, gasUsed: 21000 + (i * 100) }),
+        },
+      });
+      tokenTransactions.push(transaction);
+    }
+  }
+  console.log(`✅ Created ${tokenTransactions.length} token transactions`);
+
+  // Create entity roles for contextual testing
+  console.log('\n👥 Creating entity roles...');
+  const entityRoles: any[] = [];
+  const roleContexts = ['TRANSACTION', 'INVESTMENT', 'PROJECT', 'GUARANTEE', 'AUCTION'];
+  const roleTypes = ['SUPPLIER', 'CONSUMER', 'AGGREGATOR', 'CAPITAL_ISSUER', 'INVESTOR', 'GUARANTEE_PROVIDER', 'SERVICE_PROVIDER'];
+
+  for (let i = 0; i < Math.min(20, allUsers.length); i++) {
+    const user = allUsers[i];
+    const contextType = roleContexts[i % roleContexts.length];
+    const role = roleTypes[i % roleTypes.length];
+    const expiresAt = new Date(now.getTime() + (90 + i * 10) * 24 * 60 * 60 * 1000);
+
+    const entityRole = await prisma.entityRole.create({
+      data: {
+        entityId: user.id,
+        contextType,
+        role,
+        isActive: true,
+        expiresAt,
+        metadata: JSON.stringify({ generated: true }),
+      },
+    });
+    entityRoles.push(entityRole);
+  }
+  console.log(`✅ Created ${entityRoles.length} entity roles`);
+
+  // Create more diverse project statuses
+  console.log('\n📋 Creating additional projects with diverse statuses...');
+  const additionalProjects: Project[] = [];
+  const projectStatuses = [ProjectStatus.FUNDED, ProjectStatus.COMPLETED, ProjectStatus.CANCELLED];
+  
+  for (let i = 0; i < projectStatuses.length; i++) {
+    const status = projectStatuses[i];
+    const fundraiser = fundraisers[i % fundraisers.length];
+    
+    const project = await prisma.project.create({
+      data: {
+        title: `Test Project - ${status}`,
+        description: `A test project with status ${status} to demonstrate different project states.`,
+        category: 'Technology',
+        fundraiserId: fundraiser.id,
+        targetAmount: 10000000 + (i * 5000000),
+        currentAmount: status === ProjectStatus.FUNDED ? 10000000 + (i * 5000000) : 
+                       status === ProjectStatus.COMPLETED ? 10000000 + (i * 5000000) : 0,
+        minInvestment: 50000,
+        maxInvestment: 1000000,
+        status,
+        dueDiligenceScore: status !== ProjectStatus.CANCELLED ? 80 + (i * 5) : null,
+        images: JSON.stringify([`https://example.com/images/test${i}.jpg`]),
+        documents: JSON.stringify([`https://example.com/documents/test${i}.pdf`]),
+        metadata: JSON.stringify({ test: true, status }),
+        startDate: new Date(now.getTime() - (30 + i * 10) * 24 * 60 * 60 * 1000),
+        endDate: status === ProjectStatus.COMPLETED ? new Date(now.getTime() - (5 + i) * 24 * 60 * 60 * 1000) :
+                 new Date(now.getTime() + (30 - i * 10) * 24 * 60 * 60 * 1000),
+      },
+    });
+    additionalProjects.push(project);
+
+    // Add due diligence for non-cancelled projects
+    if (status !== ProjectStatus.CANCELLED) {
+      await prisma.dueDiligence.create({
+        data: {
+          projectId: project.id,
+          score: project.dueDiligenceScore || 75,
+          riskLevel: project.dueDiligenceScore && Number(project.dueDiligenceScore) > 80 ? 'LOW' : 'MEDIUM',
+          checks: JSON.stringify({
+            financial: { status: 'PASSED', score: 85 },
+            legal: { status: 'PASSED', score: 90 },
+            background: { status: 'PASSED', score: 80 },
+            technical: { status: 'PASSED', score: 88 },
+          }),
+          reviewedBy: admin.id,
+          reviewedAt: new Date(now.getTime() - (20 + i * 5) * 24 * 60 * 60 * 1000),
+        },
+      });
+    }
+  }
+  console.log(`✅ Created ${additionalProjects.length} additional projects with diverse statuses`);
+
+  // Create more governance votes for different proposals
+  console.log('\n🗳️ Creating additional governance votes...');
+  const additionalVotes: any[] = [];
+  const allProposals = proposals;
+  const voters = allUsers.filter((u) => u.isVerified && u.role !== 'ADMIN');
+
+  for (let i = 0; i < Math.min(10, voters.length); i++) {
+    const voter = voters[i];
+    const proposal = allProposals[i % allProposals.length];
+    const voteTypes = ['YES', 'NO', 'ABSTAIN'];
+    const voteType = voteTypes[i % voteTypes.length];
+    const votingPower = 50 + (i * 25);
+    const trustScore = await prisma.trustScore.findUnique({
+      where: { entityId: voter.id },
+    });
+
+    // Check if vote already exists
+    const existingVote = await prisma.governanceVote.findFirst({
+      where: {
+        proposalId: proposal.id,
+        voterId: voter.id,
+      },
+    });
+
+    if (!existingVote) {
+      const vote = await prisma.governanceVote.create({
+        data: {
+          proposalId: proposal.id,
+          voterId: voter.id,
+          vote: voteType,
+          votingPower,
+          weight: votingPower * ((trustScore?.trustScore || 50) / 100),
+          voterTrustScore: trustScore?.trustScore || 50,
+        },
+      });
+      additionalVotes.push(vote);
+    }
+  }
+  console.log(`✅ Created ${additionalVotes.length} additional governance votes`);
+
+  // Create more staking positions
+  console.log('\n💰 Creating additional staking positions...');
+  const additionalStakes: any[] = [];
+  const allStakingPools = stakingPools;
+  const stakers = allUsers.filter((u) => u.isVerified && u.role !== 'ADMIN').slice(3, 10);
+
+  for (let i = 0; i < Math.min(6, stakers.length); i++) {
+    const staker = stakers[i];
+    const pool = allStakingPools[i % allStakingPools.length];
+    const stakeAmount = pool.minStakeAmount * (1.5 + i * 0.5);
+    const unlockAt = pool.lockPeriod
+      ? new Date(now.getTime() + pool.lockPeriod * 24 * 60 * 60 * 1000)
+      : new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const stake = await (prisma.stake as any).create({
+      data: {
+        stakerId: staker.id,
+        poolId: pool.id,
+        tokenId: pool.tokenId,
+        amount: stakeAmount,
+        stakedAt: new Date(now.getTime() - (i * 3 * 24 * 60 * 60 * 1000)),
+        lockedUntil: pool.lockPeriod ? unlockAt : null,
+        isLocked: pool.lockPeriod ? unlockAt > now : false,
+        status: unlockAt > now ? 'ACTIVE' : 'UNSTAKED',
+        totalRewardsEarned: stakeAmount * (pool.apy / 100) * 0.05,
+        pendingRewards: stakeAmount * (pool.apy / 100) * 0.005,
+      },
+    });
+    additionalStakes.push(stake);
+  }
+  console.log(`✅ Created ${additionalStakes.length} additional staking positions`);
+
+  // Create analytics snapshots for time-series data
+  console.log('\n📊 Creating analytics snapshots...');
+  const analyticsSnapshots: any[] = [];
+  
+  for (let i = 0; i < 7; i++) {
+    const snapshotDate = new Date(now.getTime() - (6 - i) * 24 * 60 * 60 * 1000);
+    const periodStart = new Date(snapshotDate);
+    periodStart.setHours(0, 0, 0, 0);
+    const periodEnd = new Date(periodStart);
+    periodEnd.setHours(23, 59, 59, 999);
+    
+    const snapshot = await prisma.analyticsSnapshot.create({
+      data: {
+        entityId: null, // Platform-wide snapshot
+        snapshotType: 'DAILY',
+        entityType: 'SYSTEM',
+        metrics: JSON.stringify({
+          totalUsers: 50 + i * 2,
+          totalProjects: 5 + i,
+          totalInvestments: 10 + i * 2,
+          totalVolume: 1000000 + i * 100000,
+          activeAuctions: 2 + (i % 2),
+          totalTrustScore: 75 + i * 0.5,
+        }),
+        periodStart,
+        periodEnd,
+        calculatedAt: snapshotDate,
+        calculationVersion: '1.0',
+      },
+    });
+    analyticsSnapshots.push(snapshot);
+  }
+  console.log(`✅ Created ${analyticsSnapshots.length} analytics snapshots`);
+
   console.log('\n📊 Final Summary:');
   const totalInvestorsFinal = investors.length + additionalInvestors.length;
   const totalFundraisersFinal = fundraisers.length + additionalFundraisers.length;
@@ -1639,17 +2017,23 @@ async function main() {
   console.log(`     • C2B: ${totalC2BConsumersFinal + totalC2BCorporatesFinal} (${totalC2BConsumersFinal} individuals, ${totalC2BCorporatesFinal} corporates)`);
   console.log(`     • B2B: ${totalB2BTradersFinal + totalB2BCorporatesFinal} (${totalB2BTradersFinal} traders, ${totalB2BCorporatesFinal} corporates)`);
   console.log(`     • Trade Exchange: ${totalTradeBuyersFinal + totalTradeBuyerCorporatesFinal + totalTradeSellersFinal + totalTradeSellerCorporatesFinal} (${totalTradeBuyersFinal + totalTradeBuyerCorporatesFinal} buyers, ${totalTradeSellersFinal + totalTradeSellerCorporatesFinal} sellers)`);
-  console.log(`   - Projects: ${projects.length}`);
-  console.log(`   - Investments: ${investments.length}`);
-  console.log(`   - Auctions: ${auctions.length}`);
+  console.log(`   - Projects: ${projects.length + additionalProjects.length} (${projects.length} initial + ${additionalProjects.length} additional)`);
+  console.log(`   - Investments: ${investments.length + additionalInvestments.length} (${investments.length} initial + ${additionalInvestments.length} additional)`);
+  console.log(`   - Auctions: ${auctions.length + additionalAuctions.length} (${auctions.length} initial + ${additionalAuctions.length} additional)`);
   console.log(`   - Guarantee Requests: ${guaranteeRequests.length}`);
+  console.log(`   - Guarantee Allocations: ${guaranteeAllocations.length}`);
   console.log(`   - Trust Scores: ${allUsers.length}`);
   console.log(`   - Behavior Metrics: ${allUsers.length}`);
   console.log(`   - Readiness Metrics: ${fundraisers.length + Math.min(3, investors.length)}`);
   console.log(`   - Tokens: ${tokens.length}`);
+  console.log(`   - Token Transactions: ${tokenTransactions.length}`);
   console.log(`   - Governance Proposals: ${proposals.length}`);
+  console.log(`   - Governance Votes: ${additionalVotes.length + (proposals.filter((p: any) => p.status === 'ACTIVE' || p.status === 'PASSED').length * 5)}`);
   console.log(`   - Staking Pools: ${stakingPools.length}`);
+  console.log(`   - Staking Positions: ${additionalStakes.length + (stakingPools.length * 3)}`);
   console.log(`   - Reward Distributions: ${rewards.length}`);
+  console.log(`   - Entity Roles: ${entityRoles.length}`);
+  console.log(`   - Analytics Snapshots: ${analyticsSnapshots.length}`);
   console.log('\n🔑 Demo Credentials:');
   console.log('   Admin: admin@marketplace.com / admin123');
   console.log('   Investor: investor1@example.com / investor123');

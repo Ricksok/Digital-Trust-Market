@@ -29,3 +29,5 @@ Write-Host ""
 Write-Host "The migration SQL is in: $migrationFile" -ForegroundColor Cyan
 
 
+
+

@@ -124,3 +124,5 @@ Current navItems in Layout.tsx:
 8. Remove or create `/staking/unstake/[id]` link
 9. Remove or create `/auth/forgot-password` link
 
+
+

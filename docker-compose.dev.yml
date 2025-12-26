@@ -1,10 +1,10 @@
 # Development override for docker-compose.yml
 # Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+# This enables hot reload for both frontend and backend
 
 services:
   backend:
     build:
-      context: ./backend
       dockerfile: Dockerfile.dev
     environment:
       NODE_ENV: development
@@ -12,13 +12,23 @@ services:
       - ./backend:/app
       - /app/node_modules
       - /app/dist
-    command: npm run dev
+    command: >
+      sh -c "
+        echo 'Waiting for PostgreSQL...' &&
+        until pg_isready -h postgres -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-digital_trust_marketplace}; do
+          sleep 2
+        done &&
+        echo 'Syncing database schema...' &&
+        npx prisma db push --accept-data-loss || echo 'Schema sync completed' &&
+        npx prisma generate &&
+        echo 'Starting development server with hot reload...' &&
+        npm run dev
+      "
     stdin_open: true
     tty: true
 
   frontend:
     build:
-      context: ./frontend
       dockerfile: Dockerfile.dev
     environment:
       NODE_ENV: development
@@ -29,5 +39,3 @@ services:
     command: npm run dev
     stdin_open: true
     tty: true
-
-

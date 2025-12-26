@@ -89,3 +89,24 @@ export {
   useUserStats,
 } from './analytics.queries';
 
+// Regulatory Reporting queries
+export {
+  useRegulatoryReports,
+  useRegulatoryReport,
+  useGenerateCapitalMarketsReport,
+  useGenerateSACCOReport,
+  useGenerateTaxReport,
+  useGenerateAMLReport,
+  useSubmitRegulatoryReport,
+} from './regulatory-reporting.queries';
+
+// Investor Reporting queries
+export {
+  useInvestorReports,
+  useInvestorReport,
+  useGeneratePortfolioReport,
+  useGenerateImpactReport,
+  useGenerateFinancialReport,
+  usePublishInvestorReport,
+} from './investor-reporting.queries';
+

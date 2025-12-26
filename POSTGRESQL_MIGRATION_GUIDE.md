@@ -232,3 +232,5 @@ docker-compose exec backend npm run db:seed
 That's it! 🚀
 
 
+
+

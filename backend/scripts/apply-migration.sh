@@ -11,3 +11,5 @@ npx prisma generate
 echo "✅ Migration complete! You can now restart the dev server."
 
 
+
+

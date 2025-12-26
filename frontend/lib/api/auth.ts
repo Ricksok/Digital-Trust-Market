@@ -58,6 +58,11 @@ export const authApi = {
     const response = await apiClient.post('/api/auth/logout');
     return response.data;
   },
+
+  refreshToken: async (refreshToken: string) => {
+    const response = await apiClient.post('/api/auth/refresh', { refreshToken });
+    return response.data;
+  },
 };
 
 

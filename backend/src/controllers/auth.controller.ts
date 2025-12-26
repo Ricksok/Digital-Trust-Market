@@ -54,8 +54,38 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
 
 export const logout = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    // In a real implementation, you might want to blacklist the token
-    res.json({ success: true, message: 'Logged out successfully' });
+    // Log logout event for audit purposes
+    if (req.user?.id) {
+      try {
+        const { PrismaClient } = require('@prisma/client');
+        const prisma = new PrismaClient();
+        await prisma.auditLog.create({
+          data: {
+            userId: req.user.id,
+            action: 'USER_LOGOUT',
+            entityType: 'USER',
+            entityId: req.user.id,
+            ipAddress: req.ip || req.headers['x-forwarded-for'] as string || 'unknown',
+            userAgent: req.headers['user-agent'] || 'unknown',
+          },
+        });
+        await prisma.$disconnect();
+      } catch (auditError) {
+        // Don't fail logout if audit logging fails
+        console.error('Failed to log logout event:', auditError);
+      }
+    }
+
+    // Note: In a production system, you would:
+    // 1. Add token to a blacklist (Redis or database)
+    // 2. Invalidate refresh tokens
+    // 3. Clear any server-side sessions
+    
+    res.json({ 
+      success: true, 
+      message: 'Logged out successfully',
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     next(error);
   }

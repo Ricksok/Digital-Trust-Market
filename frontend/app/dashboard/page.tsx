@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useCurrentUser, useLogout } from '@/lib/queries';
+import { useCurrentUser } from '@/lib/queries';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import Card, { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -13,7 +13,6 @@ import Badge from '@/components/ui/Badge';
 export default function DashboardPage() {
   const router = useRouter();
   const { data: user, isLoading, error } = useCurrentUser();
-  const logout = useLogout();
   const { isAuthenticated } = useAuthStore();
 
   // Redirect if not authenticated
@@ -22,14 +21,6 @@ export default function DashboardPage() {
       router.push('/auth/login');
     }
   }, [isAuthenticated, isLoading, router]);
-
-  const handleLogout = () => {
-    logout.mutate(undefined, {
-      onSuccess: () => {
-        router.push('/auth/login');
-      },
-    });
-  };
 
   if (isLoading) {
     return (
@@ -92,9 +83,6 @@ export default function DashboardPage() {
               Welcome back{user?.firstName ? `, ${user.firstName}` : ''}!
             </p>
           </div>
-          <Button variant="danger" onClick={handleLogout}>
-            Logout
-          </Button>
         </div>
 
         {/* User Info Card */}

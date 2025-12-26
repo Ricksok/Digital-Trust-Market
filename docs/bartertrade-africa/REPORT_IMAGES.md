@@ -29,3 +29,5 @@ These images are referenced in:
 - `docs/BARTERTRADE_ARCHITECTURE.md` - Main architecture document
 - `docs/BARTERTRADE_ENGINE_MAPPING.md` - Engine mapping and status
 
+
+

@@ -131,19 +131,39 @@ export const refreshToken = async (refreshToken: string) => {
   }
 
   try {
-    const decoded = jwt.verify(refreshToken, secret) as { id: string };
+    const decoded = jwt.verify(refreshToken, secret) as { id: string; exp?: number };
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
     });
 
-    if (!user || !user.isActive) {
-      throw createError('Invalid token', 401);
+    if (!user) {
+      throw createError('User not found', 404);
     }
 
+    if (!user.isActive) {
+      throw createError('Account is deactivated', 403);
+    }
+
+    // Generate new access token
     const token = generateToken(user);
-    return { token };
-  } catch (error) {
-    throw createError('Invalid refresh token', 401);
+    
+    // Optionally generate a new refresh token (rotate refresh tokens for security)
+    // For now, we'll return the same refresh token
+    // In production, you might want to rotate refresh tokens
+    const newRefreshToken = generateRefreshToken(user);
+
+    return { 
+      token,
+      refreshToken: newRefreshToken,
+    };
+  } catch (error: any) {
+    if (error.name === 'TokenExpiredError') {
+      throw createError('Refresh token expired', 401);
+    }
+    if (error.name === 'JsonWebTokenError') {
+      throw createError('Invalid refresh token', 401);
+    }
+    throw error;
   }
 };
 

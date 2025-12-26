@@ -53,3 +53,5 @@ docker-compose exec postgres psql -U postgres -d digital_trust_marketplace
 - Migration details: [MIGRATION_TO_DOCKER.md](./MIGRATION_TO_DOCKER.md)
 
 
+
+

@@ -106,3 +106,5 @@ docker-compose exec backend sh
 docker-compose exec backend npx prisma migrate dev --name init_postgresql
 ```
 
+
+
