@@ -1,0 +1,31 @@
+{
+  "name": "digital-trust-marketplace-contracts",
+  "version": "1.0.0",
+  "description": "Smart contracts for Digital Trust Marketplace escrow",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
+    "deploy:testnet": "hardhat run scripts/deploy.ts --network testnet",
+    "deploy:mainnet": "hardhat run scripts/deploy.ts --network mainnet",
+    "node": "hardhat node",
+    "clean": "hardhat clean"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@typechain/ethers-v6": "^0.5.1",
+    "@typechain/hardhat": "^9.1.0",
+    "hardhat": "^2.19.4",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2",
+    "dotenv": "^16.3.1",
+    "chai": "^4.3.10",
+    "@types/chai": "^4.3.11"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.1",
+    "ethers": "^6.9.2"
+  }
+}
+

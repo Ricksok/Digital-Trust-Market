@@ -1,0 +1,208 @@
+// SQLite-compatible schema
+// This is a simplified version for SQLite (no enums, Json, Decimal, or arrays)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String?
+  firstName     String?
+  lastName      String?
+  phone         String?
+  role          String    // INDIVIDUAL_INVESTOR, INSTITUTIONAL_INVESTOR, etc.
+  userType      String    // INVESTOR, FUNDRAISER
+  walletAddress String?   @unique
+  isVerified    Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  kycRecord     KYCRecord?
+  projects      Project[]
+  investments   Investment[]
+  payments      Payment[]
+
+  @@index([email])
+  @@index([walletAddress])
+  @@index([role])
+}
+
+model KYCRecord {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  status          String    @default("PENDING") // PENDING, IN_PROGRESS, APPROVED, REJECTED, EXPIRED
+  documentType    String?
+  documentNumber  String?
+  documentUrl     String?
+  verificationData String?  // JSON stored as string
+  rejectionReason String?
+  verifiedAt      DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([userId])
+}
+
+model Project {
+  id                String        @id @default(uuid())
+  title             String
+  description       String
+  category          String
+  fundraiserId      String
+  targetAmount      Float
+  currentAmount     Float         @default(0)
+  minInvestment     Float
+  maxInvestment     Float?
+  status            String        @default("DRAFT") // DRAFT, PENDING_APPROVAL, APPROVED, ACTIVE, FUNDED, COMPLETED, CANCELLED
+  dueDiligenceScore Float?
+  complianceStatus  String?
+  images            String?       // JSON array stored as string
+  documents         String?       // JSON array stored as string
+  metadata          String?       // JSON stored as string
+  startDate         DateTime?
+  endDate           DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  // Relations
+  fundraiser        User          @relation(fields: [fundraiserId], references: [id])
+  investments       Investment[]
+  escrowContracts   EscrowContract[]
+
+  @@index([fundraiserId])
+  @@index([status])
+  @@index([category])
+}
+
+model Investment {
+  id            String          @id @default(uuid())
+  investorId    String
+  projectId     String
+  amount        Float
+  status        String          @default("PENDING") // PENDING, APPROVED, ESCROWED, RELEASED, REFUNDED, CANCELLED
+  transactionHash String?
+  notes         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  // Relations
+  investor      User            @relation(fields: [investorId], references: [id])
+  project       Project         @relation(fields: [projectId], references: [id])
+  payments      Payment[]
+  escrowContract EscrowContract?
+
+  @@index([investorId])
+  @@index([projectId])
+  @@index([status])
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  userId          String
+  investmentId    String?
+  amount          Float
+  currency        String        @default("USD")
+  status          String        @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, REFUNDED
+  paymentMethod   String
+  transactionId   String?
+  gatewayResponse String?       // JSON stored as string
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  user            User          @relation(fields: [userId], references: [id])
+  investment      Investment?   @relation(fields: [investmentId], references: [id])
+
+  @@index([userId])
+  @@index([investmentId])
+  @@index([status])
+}
+
+model EscrowContract {
+  id                String      @id @default(uuid())
+  investmentId       String      @unique
+  projectId         String
+  contractAddress   String      @unique
+  amount            Float
+  status            String      @default("PENDING") // PENDING, ACTIVE, RELEASED, REFUNDED, DISPUTED
+  releaseConditions String?     // JSON stored as string
+  releasedAt        DateTime?
+  refundedAt        DateTime?
+  disputeReason     String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  // Relations
+  investment        Investment  @relation(fields: [investmentId], references: [id])
+  project           Project     @relation(fields: [projectId], references: [id])
+
+  @@index([contractAddress])
+  @@index([status])
+  @@index([investmentId])
+}
+
+model DueDiligence {
+  id              String    @id @default(uuid())
+  projectId       String    @unique
+  score           Float
+  riskLevel       String
+  checks          String    // JSON stored as string
+  reportUrl       String?
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([riskLevel])
+}
+
+model ComplianceRecord {
+  id              String    @id @default(uuid())
+  projectId       String?
+  userId          String?
+  type            String
+  status          String
+  cmaReference    String?
+  auditorNotes    String?
+  documents       String?   // JSON array stored as string
+  verifiedAt      DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([status])
+}
+
+model AuditLog {
+  id              String    @id @default(uuid())
+  userId          String?
+  action          String
+  entityType      String
+  entityId        String
+  changes         String?   // JSON stored as string
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime  @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+

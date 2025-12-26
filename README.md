@@ -47,12 +47,41 @@ A comprehensive platform connecting investors and fundraisers with integrated KY
 
 ### Prerequisites
 
+**Option 1: Docker (Recommended for Enterprise Setup)**
+- Docker Desktop (Windows/Mac) or Docker Engine + Docker Compose (Linux)
+- Docker version 20.10 or higher
+
+**Option 2: Local Development**
 - Node.js 18+ and npm
 - PostgreSQL database
 - Ethereum-compatible blockchain (for smart contracts)
 - Hardhat or Foundry (for contract development)
 
-### Installation
+### Quick Start with Docker
+
+```bash
+# 1. Copy environment file
+cp .env.example .env
+
+# 2. Edit .env and update:
+#    - POSTGRES_PASSWORD (change from default)
+#    - JWT_SECRET (generate strong secret, min 32 chars)
+
+# 3. Start all services
+docker-compose up -d
+
+# 4. Seed database
+docker-compose exec backend npm run db:seed
+
+# 5. Access services:
+#    - Frontend: http://localhost:3000
+#    - Backend API: http://localhost:3001
+#    - Health Check: http://localhost:3001/health
+```
+
+See [DOCKER_SETUP.md](./DOCKER_SETUP.md) for detailed Docker setup instructions.
+
+### Local Installation
 
 ```bash
 # Install all dependencies (root, backend, frontend, and contracts)
@@ -123,8 +152,10 @@ See `.env.example` files in each directory:
 - **Backend**: Node.js, Express, TypeScript, Prisma ORM, PostgreSQL
 - **Frontend**: Next.js, React, TypeScript, Tailwind CSS
 - **Blockchain**: Solidity, Hardhat, ethers.js
-- **Database**: PostgreSQL
+- **Database**: PostgreSQL (Enterprise-grade, containerized)
+- **Containerization**: Docker, Docker Compose
 - **Authentication**: JWT, Web3 wallet integration
+- **Architecture**: Microservices-ready, enterprise-grade setup
 
 ## Development
 

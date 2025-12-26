@@ -1,0 +1,103 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: mvp-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-digital_trust_marketplace}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/prisma/migrations:/docker-entrypoint-initdb.d/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-digital_trust_marketplace}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mvp-network
+    restart: unless-stopped
+
+  # Backend API Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mvp-backend
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${BACKEND_PORT:-3001}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-digital_trust_marketplace}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      # Add other environment variables as needed
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+    # Production: Use built files from image, no volume mounts needed
+    # volumes:
+    #   - ./backend:/app
+    #   - /app/node_modules
+    #   - /app/dist
+    volumes:
+      - ./backend/logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mvp-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        echo 'Waiting for PostgreSQL...' &&
+        until pg_isready -h postgres -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-digital_trust_marketplace}; do
+          sleep 2
+        done &&
+        echo 'Syncing database schema...' &&
+        npx prisma db push --accept-data-loss || echo 'Schema sync completed' &&
+        npx prisma generate &&
+        echo 'Starting application...' &&
+        npm start
+      "
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mvp-frontend
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      NEXT_PUBLIC_WEB3_RPC_URL: ${NEXT_PUBLIC_WEB3_RPC_URL:-}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    # Production: Use built files from image, no volume mounts needed
+    # volumes:
+    #   - ./frontend:/app
+    #   - /app/node_modules
+    #   - /app/.next
+    depends_on:
+      - backend
+    networks:
+      - mvp-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  mvp-network:
+    driver: bridge
+

@@ -1,0 +1,1082 @@
+// PostgreSQL schema - Enterprise grade architecture
+// Supports enums, Json, Decimal, and arrays
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String?
+  firstName     String?
+  lastName      String?
+  phone         String?
+  role          String // INDIVIDUAL_INVESTOR, INSTITUTIONAL_INVESTOR, etc. (legacy - use EntityRole for contextual roles)
+  userType      String // INVESTOR, FUNDRAISER (legacy - use EntityType for entity type)
+  walletAddress String?  @unique
+  isVerified    Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  
+  // Entity Model Fields (Phase 1)
+  entityType    String?  // INDIVIDUAL, COMPANY, SACCO, FUND, INSTITUTIONAL_BUYER
+  companyName   String?  // For COMPANY, SACCO entities
+  registrationNumber String? // For registered entities
+  legalStructure String? // LLC, CORPORATION, COOPERATIVE, etc.
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  kycRecord        KYCRecord?
+  projects         Project[]
+  investments      Investment[]
+  payments         Payment[]
+  trustScore       TrustScore?
+  behaviorMetrics  BehaviorMetrics?
+  readinessMetrics ReadinessMetrics?
+  guarantorScore   GuarantorScore?
+  entityRoles      EntityRole[] // Contextual roles per transaction
+  bids             Bid[] // Bids placed in auctions
+  guaranteeBids    GuaranteeBid[] // Guarantee bids placed
+  guaranteeAllocations GuaranteeAllocation[] // Guarantees allocated
+  guaranteeRequestsIssued GuaranteeRequest[] // Guarantee requests issued
+  tokenBalances    TokenBalance[] // Token holdings
+  tokenTransactionsFrom TokenTransaction[] @relation("TokenTransactionsFrom") // Token transactions sent
+  tokenTransactionsTo TokenTransaction[] @relation("TokenTransactionsTo") // Token transactions received
+  governanceProposals GovernanceProposal[] // Proposals created
+  governanceVotes  GovernanceVote[] // Votes cast
+  stakes           Stake[] // Staking positions
+  rewardsReceived  RewardDistribution[] // Rewards received
+
+  @@index([email])
+  @@index([walletAddress])
+  @@index([role])
+  @@index([entityType])
+}
+
+model KYCRecord {
+  id               String    @id @default(uuid())
+  userId           String    @unique
+  status           String    @default("PENDING") // PENDING, IN_PROGRESS, APPROVED, REJECTED, EXPIRED
+  documentType     String?
+  documentNumber   String?
+  documentUrl      String?
+  verificationData String? // JSON stored as string
+  rejectionReason  String?
+  verifiedAt       DateTime?
+  expiresAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([userId])
+}
+
+model Project {
+  id                String    @id @default(uuid())
+  title             String
+  description       String
+  category          String
+  fundraiserId      String
+  targetAmount      Float
+  currentAmount     Float     @default(0)
+  minInvestment     Float
+  maxInvestment     Float?
+  status            String    @default("DRAFT") // DRAFT, PENDING_APPROVAL, APPROVED, ACTIVE, FUNDED, COMPLETED, CANCELLED
+  dueDiligenceScore Float?
+  complianceStatus  String?
+  images            String? // JSON array stored as string
+  documents         String? // JSON array stored as string
+  metadata          String? // JSON stored as string
+  startDate         DateTime?
+  endDate           DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  fundraiser      User             @relation(fields: [fundraiserId], references: [id])
+  investments     Investment[]
+  escrowContracts EscrowContract[]
+  auctions        Auction[]        // Capital auctions for this project
+  guaranteeRequests GuaranteeRequest[] // Guarantee requests for this project
+
+  @@index([fundraiserId])
+  @@index([status])
+  @@index([category])
+}
+
+model Investment {
+  id              String   @id @default(uuid())
+  investorId      String
+  projectId       String
+  amount          Float
+  status          String   @default("PENDING") // PENDING, APPROVED, ESCROWED, RELEASED, REFUNDED, CANCELLED
+  transactionHash String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  investor       User            @relation(fields: [investorId], references: [id])
+  project        Project         @relation(fields: [projectId], references: [id])
+  payments       Payment[]
+  escrowContract EscrowContract?
+
+  @@index([investorId])
+  @@index([projectId])
+  @@index([status])
+}
+
+model Payment {
+  id              String   @id @default(uuid())
+  userId          String
+  investmentId    String?
+  amount          Float
+  currency        String   @default("USD")
+  status          String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, REFUNDED
+  paymentMethod   String
+  transactionId   String?
+  gatewayResponse String? // JSON stored as string
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user       User        @relation(fields: [userId], references: [id])
+  investment Investment? @relation(fields: [investmentId], references: [id])
+
+  @@index([userId])
+  @@index([investmentId])
+  @@index([status])
+}
+
+model EscrowContract {
+  id                String    @id @default(uuid())
+  investmentId      String    @unique
+  projectId         String
+  contractAddress   String    @unique
+  amount            Float
+  status            String    @default("PENDING") // PENDING, ACTIVE, RELEASED, REFUNDED, DISPUTED
+  releaseConditions String? // JSON stored as string
+  releasedAt        DateTime?
+  refundedAt        DateTime?
+  disputeReason     String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  investment Investment @relation(fields: [investmentId], references: [id])
+  project    Project    @relation(fields: [projectId], references: [id])
+
+  @@index([contractAddress])
+  @@index([status])
+  @@index([investmentId])
+}
+
+model DueDiligence {
+  id         String    @id @default(uuid())
+  projectId  String    @unique
+  score      Float
+  riskLevel  String
+  checks     String // JSON stored as string
+  reportUrl  String?
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([riskLevel])
+}
+
+model ComplianceRecord {
+  id           String    @id @default(uuid())
+  projectId    String?
+  userId       String?
+  type         String
+  status       String
+  cmaReference String?
+  auditorNotes String?
+  documents    String? // JSON array stored as string
+  verifiedAt   DateTime?
+  expiresAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([status])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  changes    String? // JSON stored as string
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+// ============================================
+// Trust Engine Models (Phase 1)
+// ============================================
+
+model TrustScore {
+  id       String @id @default(uuid())
+  entityId String // References User.id (will be Entity.id in Phase 2)
+
+  // Core Trust Scores (0-100)
+  trustScore             Float  @default(0) // Overall trust (T)
+  readinessScore         Float? @default(0) // Issuer preparedness (R)
+  behaviorScore          Float  @default(0) // Pattern consistency (B)
+  counterpartyScore      Float? @default(0) // Buyer/supplier reliability (C)
+  guaranteeCapacityScore Float? @default(0) // Guarantor quality (G)
+
+  // Trust Dimensions (0-100)
+  identityTrust    Float  @default(0) // KYC/KYB verification level
+  transactionTrust Float? @default(0) // Transaction success rate
+  financialTrust   Float? @default(0) // Financial reliability
+  performanceTrust Float? @default(0) // Delivery/performance consistency
+  guaranteeTrust   Float? @default(0) // Guarantee provider quality
+  governanceTrust  Float? @default(0) // Governance quality
+  learningTrust    Float? @default(0) // Learning/readiness from EdTech
+
+  // Metadata
+  lastCalculatedAt   DateTime @default(now())
+  calculationVersion String? // Version of scoring algorithm used
+  metadata           String? // JSON stored as string
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  entity      User         @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  trustEvents TrustEvent[]
+
+  @@unique([entityId])
+  @@index([entityId])
+  @@index([trustScore])
+  @@index([lastCalculatedAt])
+}
+
+model TrustEvent {
+  id           String @id @default(uuid())
+  trustScoreId String
+
+  // Event Details
+  eventType     String // TRUST_UPDATED, TRUST_DECAY_APPLIED, TRUST_THRESHOLD_BREACHED, TRUST_RECOVERY_EVENT
+  dimension     String? // Which trust dimension was affected
+  previousScore Float?
+  newScore      Float
+  changeAmount  Float // Delta
+
+  // Context
+  triggerType       String // AUTOMATIC, MANUAL, TRANSACTION, LEARNING, BEHAVIOR
+  triggerEntityId   String? // What entity/transaction triggered this
+  triggerEntityType String? // TRANSACTION, INVESTMENT, PAYMENT, COURSE, etc.
+
+  // Explanation
+  reason             String? // Human-readable explanation
+  calculationDetails String? // JSON stored as string - detailed calculation
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  trustScore TrustScore @relation(fields: [trustScoreId], references: [id], onDelete: Cascade)
+
+  @@index([trustScoreId])
+  @@index([eventType])
+  @@index([dimension])
+  @@index([createdAt])
+  @@index([triggerEntityType, triggerEntityId])
+}
+
+model BehaviorMetrics {
+  id       String @id @default(uuid())
+  entityId String
+
+  // Transaction Metrics
+  totalTransactions      Int   @default(0)
+  successfulTransactions Int   @default(0)
+  failedTransactions     Int   @default(0)
+  transactionSuccessRate Float @default(0)
+
+  // Payment Metrics
+  totalPayments      Int   @default(0)
+  onTimePayments     Int   @default(0)
+  latePayments       Int   @default(0)
+  missedPayments     Int   @default(0)
+  paymentPunctuality Float @default(0) // 0-100
+
+  // Delivery/Performance Metrics
+  totalDeliveries    Int   @default(0)
+  onTimeDeliveries   Int   @default(0)
+  lateDeliveries     Int   @default(0)
+  deliveryTimeliness Float @default(0) // 0-100
+
+  // Auction Behavior
+  totalBids      Int    @default(0)
+  winningBids    Int    @default(0)
+  bidWinRate     Float  @default(0)
+  averageBidTime Float? // Seconds from auction start
+
+  // Dispute Metrics
+  totalDisputes Int   @default(0)
+  disputesWon   Int   @default(0)
+  disputesLost  Int   @default(0)
+  disputeRate   Float @default(0)
+
+  // Escrow Outcomes
+  totalEscrows      Int   @default(0)
+  successfulEscrows Int   @default(0)
+  refundedEscrows   Int   @default(0)
+  escrowSuccessRate Float @default(0)
+
+  // Time Windows
+  last30Days  String? // JSON stored as string - metrics for last 30 days
+  last90Days  String? // JSON stored as string - metrics for last 90 days
+  last365Days String? // JSON stored as string - metrics for last year
+
+  lastCalculatedAt DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  entity User @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@unique([entityId])
+  @@index([entityId])
+  @@index([lastCalculatedAt])
+}
+
+model ReadinessMetrics {
+  id       String @id @default(uuid())
+  entityId String
+
+  // Learning Metrics
+  coursesCompleted     Int    @default(0)
+  certificationsEarned Int    @default(0)
+  learningHours        Float  @default(0)
+  quizAverageScore     Float? // 0-100
+
+  // Course Categories
+  financeCourses    Int @default(0)
+  governanceCourses Int @default(0)
+  technicalCourses  Int @default(0)
+  complianceCourses Int @default(0)
+
+  // Readiness Indicators
+  hasBusinessPlan        Boolean @default(false)
+  hasFinancialStatements Boolean @default(false)
+  hasGovernanceDocs      Boolean @default(false)
+  hasComplianceDocs      Boolean @default(false)
+
+  // Readiness Score Components
+  documentationReadiness Float @default(0) // 0-100
+  financialReadiness     Float @default(0) // 0-100
+  governanceReadiness    Float @default(0) // 0-100
+  complianceReadiness    Float @default(0) // 0-100
+
+  lastCalculatedAt DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  entity User @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@unique([entityId])
+  @@index([entityId])
+}
+
+model GuarantorScore {
+  id       String @id @default(uuid())
+  entityId String // Guarantee provider entity
+
+  // Guarantee-Specific Metrics
+  totalGuaranteesIssued Int   @default(0)
+  activeGuarantees      Int   @default(0)
+  totalExposure         Float @default(0) // Total amount guaranteed
+  totalDrawdowns        Float @default(0) // Total amount paid out
+  totalRecoveries       Float @default(0) // Amount recovered from defaults
+
+  // Performance Metrics
+  defaultRate  Float @default(0) // Percentage of guarantees that defaulted
+  lossRatio    Float @default(0) // Drawdowns / Premiums collected
+  recoveryRate Float @default(0) // Recoveries / Drawdowns
+
+  // Capacity Metrics
+  maxCapacity       Float? // Maximum guarantee capacity
+  utilizationRate   Float  @default(0) // Active / Max capacity
+  availableCapacity Float  @default(0) // Max - Active
+
+  // Guarantee Trust Score
+  guaranteeTrustScore Float @default(0) // 0-100, specific to guarantee provision
+
+  // Regulatory Compliance
+  regulatoryApproval Boolean @default(false)
+  sasraRegistered    Boolean @default(false)
+  capitalAdequacy    Float? // Capital adequacy ratio
+
+  lastCalculatedAt DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  entity User @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@unique([entityId])
+  @@index([entityId])
+  @@index([guaranteeTrustScore])
+}
+
+// ============================================
+// Entity Model (Phase 1) - Contextual Roles
+// ============================================
+
+model EntityRole {
+  id          String   @id @default(uuid())
+  entityId    String   // References User.id
+
+  // Context
+  contextType String   // TRANSACTION, INVESTMENT, PROJECT, GUARANTEE, AUCTION
+  contextId   String?  // ID of the transaction/project/etc.
+
+  // Role in this context
+  role        String   // SUPPLIER, CONSUMER, AGGREGATOR, CAPITAL_ISSUER, INVESTOR, GUARANTEE_PROVIDER, SERVICE_PROVIDER
+
+  // Metadata
+  assignedAt  DateTime @default(now())
+  expiresAt   DateTime? // Optional expiration
+  isActive    Boolean  @default(true)
+  metadata    String?  // JSON stored as string
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  entity      User     @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([entityId])
+  @@index([contextType, contextId])
+  @@index([role])
+  @@index([isActive])
+}
+
+// ============================================
+// Reverse Auction Engine (Phase 2)
+// ============================================
+
+model Auction {
+  id              String  @id @default(uuid())
+
+  // Auction Type
+  auctionType     String  // CAPITAL, GUARANTEE, SUPPLY_CONTRACT, TRADE_SERVICE
+
+  // Context
+  campaignId      String? // Links to Project/Campaign
+  projectId       String? // For capital auctions
+  guaranteeRequestId String? // For guarantee auctions
+
+  // Auction Configuration
+  title           String
+  description     String?
+  reservePrice    Float?  // Minimum acceptable price
+  targetAmount    Float?  // For capital auctions
+  currency        String  @default("KES")
+
+  // Timing
+  startTime       DateTime
+  endTime         DateTime
+  extendedEndTime DateTime? // If auction was extended
+
+  // Status
+  status          String  @default("PENDING") // PENDING, ACTIVE, CLOSED, CANCELLED
+
+  // Clearing
+  clearedPrice    Float?  // Final clearing price
+  clearedAt       DateTime?
+  clearingMethod  String? // FIRST_PRICE, SECOND_PRICE, MULTI_WINNER
+
+  // Trust & Eligibility
+  minTrustScore   Float?  // Minimum trust required to bid
+  trustWeight     Float   @default(1.0) // Trust weighting factor
+
+  // Metadata
+  metadata        String? // JSON stored as string
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  bids            Bid[]
+  project         Project? @relation(fields: [projectId], references: [id])
+
+  @@index([auctionType])
+  @@index([status])
+  @@index([startTime, endTime])
+  @@index([projectId])
+}
+
+model Bid {
+  id              String   @id @default(uuid())
+  auctionId       String
+  bidderId        String   // References User.id
+
+  // Bid Details
+  price           Float    // Bid price (yield, fee, coverage %, etc.)
+  amount          Float?   // Amount being bid on (for capital auctions)
+
+  // Bid Status
+  status          String   @default("PENDING") // PENDING, ACCEPTED, REJECTED, WITHDRAWN
+
+  // Trust & Weighting
+  bidderTrustScore Float?  // Trust score at time of bid
+  effectiveBid     Float?  // price * trustWeight (calculated)
+
+  // Proxy Bidding
+  isProxyBid      Boolean  @default(false)
+  maxPrice        Float?   // For proxy bidding
+
+  // Timing
+  submittedAt     DateTime @default(now())
+  acceptedAt      DateTime?
+  withdrawnAt     DateTime?
+
+  // Metadata
+  notes           String?
+  metadata        String?  // JSON stored as string
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  auction         Auction  @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  bidder          User     @relation(fields: [bidderId], references: [id])
+
+  @@index([auctionId])
+  @@index([bidderId])
+  @@index([status])
+  @@index([submittedAt])
+  @@index([price])
+}
+
+// ============================================
+// Guarantee Marketplace (Phase 3)
+// ============================================
+
+model GuaranteeRequest {
+  id                String  @id @default(uuid())
+  issuerId          String  // Entity requesting guarantee
+  projectId         String? // Project being guaranteed
+  investmentId      String? // Investment being guaranteed
+
+  // Guarantee Details
+  guaranteeType     String  // CREDIT_RISK, PERFORMANCE_RISK, CONTRACT_ASSURANCE
+  requestedCoverage Float   // Percentage (0-100)
+  amount            Float   // Amount to be guaranteed
+  currency          String  @default("KES")
+
+  // Status
+  status            String  @default("PENDING") // PENDING, AUCTION_ACTIVE, ALLOCATED, EXPIRED
+
+  // Auction
+  auctionId         String? // Reverse auction for guarantee allocation
+
+  // Allocation
+  allocatedCoverage Float?  // Final allocated coverage %
+  allocatedLayers   String?  // JSON stored as string - multi-layer allocation
+
+  // Timing
+  requestedAt       DateTime @default(now())
+  allocatedAt       DateTime?
+  expiresAt         DateTime?
+
+  // Metadata
+  metadata          String?  // JSON stored as string
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  issuer            User              @relation(fields: [issuerId], references: [id])
+  project           Project?          @relation(fields: [projectId], references: [id])
+  guaranteeBids     GuaranteeBid[]
+  guaranteeAllocations GuaranteeAllocation[]
+
+  @@index([issuerId])
+  @@index([status])
+  @@index([auctionId])
+}
+
+model GuaranteeBid {
+  id                  String  @id @default(uuid())
+  guaranteeRequestId  String
+  guarantorId        String   // Guarantee provider entity
+
+  // Bid Details
+  coveragePercent    Float    // Coverage percentage offered
+  feePercent         Float    // Fee percentage (annual)
+  layer              String?  // FIRST_LOSS, MEZZANINE, SENIOR
+
+  // Capacity
+  maxCapacity        Float?   // Maximum guarantee capacity
+  availableCapacity  Float?   // Available capacity
+
+  // Status
+  status             String   @default("PENDING") // PENDING, ACCEPTED, REJECTED, WITHDRAWN
+
+  // Trust & Weighting
+  guarantorTrustScore Float?   // Guarantor's guarantee trust score
+  effectiveBid        Float?   // feePercent * trustWeight (calculated)
+
+  // Timing
+  submittedAt        DateTime @default(now())
+  acceptedAt         DateTime?
+
+  // Metadata
+  notes              String?
+  metadata           String?  // JSON stored as string
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relations
+  guaranteeRequest   GuaranteeRequest @relation(fields: [guaranteeRequestId], references: [id], onDelete: Cascade)
+  guarantor          User             @relation(fields: [guarantorId], references: [id])
+
+  @@index([guaranteeRequestId])
+  @@index([guarantorId])
+  @@index([status])
+  @@index([feePercent])
+}
+
+model GuaranteeAllocation {
+  id                  String  @id @default(uuid())
+  guaranteeRequestId   String
+  guarantorId         String
+
+  // Allocation Details
+  coveragePercent     Float    // Allocated coverage %
+  feePercent          Float    // Agreed fee %
+  amount              Float    // Guaranteed amount
+  layer               String   // FIRST_LOSS, MEZZANINE, SENIOR
+
+  // Status
+  status              String   @default("ACTIVE") // ACTIVE, DRAWN, RELEASED, EXPIRED
+
+  // Drawdown
+  drawnAmount         Float    @default(0)
+  drawnAt             DateTime?
+
+  // Recovery
+  recoveredAmount     Float    @default(0)
+  recoveredAt         DateTime?
+
+  // Timing
+  allocatedAt         DateTime @default(now())
+  expiresAt           DateTime?
+
+  // Metadata
+  contractAddress     String?  // Smart contract address if applicable
+  metadata            String?  // JSON stored as string
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations
+  guaranteeRequest    GuaranteeRequest @relation(fields: [guaranteeRequestId], references: [id], onDelete: Cascade)
+  guarantor           User             @relation(fields: [guarantorId], references: [id])
+
+  @@index([guaranteeRequestId])
+  @@index([guarantorId])
+  @@index([status])
+  @@index([layer])
+}
+
+// ============================================
+// Analytics Engine - Time Series Store (Phase 4)
+// ============================================
+
+model TimeSeriesEvent {
+  id          String   @id @default(uuid())
+
+  // Event Type
+  eventType   String   // TRANSACTION, BID, PAYMENT, TRUST_UPDATE, AUCTION_CLEARING
+
+  // Entity Context
+  entityId    String?  // Related entity
+  entityType  String?  // USER, PROJECT, INVESTMENT, AUCTION
+
+  // Event Data
+  eventData   String   // JSON stored as string - event payload
+  value       Float?   // Numeric value if applicable
+  currency    String?  // Currency if applicable
+
+  // Categorization
+  category    String?  // For grouping events
+  tags        String?  // JSON array stored as string
+
+  // Timestamp
+  timestamp   DateTime @default(now())
+
+  // Metadata
+  source      String?  // Source system/module
+  metadata    String?  // JSON stored as string
+
+  createdAt   DateTime @default(now())
+
+  @@index([eventType])
+  @@index([entityType, entityId])
+  @@index([timestamp])
+  @@index([category])
+}
+
+model AnalyticsSnapshot {
+  id                String   @id @default(uuid())
+
+  // Snapshot Type
+  snapshotType      String   // DAILY, WEEKLY, MONTHLY, QUARTERLY, YEARLY
+
+  // Entity Context
+  entityId          String?  // If entity-specific snapshot
+  entityType        String?  // USER, PROJECT, SYSTEM
+
+  // Snapshot Data
+  metrics           String   // JSON stored as string - all metrics
+  dimensions        String?  // JSON stored as string - breakdown by dimensions
+
+  // Period
+  periodStart       DateTime
+  periodEnd         DateTime
+
+  // Metadata
+  calculatedAt      DateTime @default(now())
+  calculationVersion String?
+
+  createdAt         DateTime @default(now())
+
+  @@index([snapshotType])
+  @@index([entityType, entityId])
+  @@index([periodStart, periodEnd])
+}
+
+// ============================================
+// Tokenomics & DeFi Ecosystem
+// ============================================
+
+model Token {
+  id              String   @id @default(uuid())
+  tokenType       String   // BTA_GOV, BTA_REWARD, BTA_UTIL, BTA_GUAR
+  symbol          String   @unique
+  name            String
+  totalSupply     Float    @default(0)
+  circulatingSupply Float  @default(0)
+  decimals        Int      @default(18)
+  
+  // Tokenomics
+  initialSupply   Float?
+  maxSupply       Float?
+  inflationRate   Float?   // Annual inflation rate
+  burnRate        Float?   // Tokens burned per transaction
+  
+  // Metadata
+  contractAddress String?  // Smart contract address
+  metadata        String?  // JSON stored as string
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  balances        TokenBalance[]
+  transactions    TokenTransaction[]
+  stakingPools    StakingPool[] @relation("StakingPoolToken")
+  rewardStakingPools StakingPool[] @relation("StakingPoolRewardToken")
+  rewards         RewardDistribution[]
+  stakes          Stake[]
+  guaranteeTokenAllocations GuaranteeTokenAllocation[]
+
+  @@index([tokenType])
+  @@index([symbol])
+}
+
+model TokenBalance {
+  id          String   @id @default(uuid())
+  entityId    String   // User/Entity ID
+  tokenId     String
+  balance     Float    @default(0)
+  locked      Float    @default(0) // Locked in staking/escrow
+  available   Float    @default(0) // Available balance
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  token       Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  entity      User     @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@unique([entityId, tokenId])
+  @@index([entityId])
+  @@index([tokenId])
+}
+
+model TokenTransaction {
+  id              String   @id @default(uuid())
+  tokenId         String
+  fromEntityId    String?
+  toEntityId      String?
+  amount          Float
+  transactionType String   // TRANSFER, REWARD, STAKE, UNSTAKE, BURN, MINT
+  transactionHash String?  // Blockchain transaction hash
+  blockNumber     Int?
+  status          String   @default("PENDING") // PENDING, CONFIRMED, FAILED
+  
+  // Context
+  contextType     String?  // INVESTMENT, GUARANTEE, GOVERNANCE, REWARD
+  contextId       String?
+  
+  metadata        String?  // JSON stored as string
+  timestamp       DateTime @default(now())
+  
+  createdAt       DateTime @default(now())
+
+  // Relations
+  token           Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  fromEntity      User?    @relation("TokenTransactionsFrom", fields: [fromEntityId], references: [id], onDelete: SetNull)
+  toEntity        User?    @relation("TokenTransactionsTo", fields: [toEntityId], references: [id], onDelete: SetNull)
+
+  @@index([tokenId])
+  @@index([fromEntityId])
+  @@index([toEntityId])
+  @@index([transactionType])
+  @@index([timestamp])
+}
+
+// ============================================
+// Governance & DAO
+// ============================================
+
+model GovernanceProposal {
+  id              String   @id @default(uuid())
+  proposerId      String   // Entity that created the proposal
+  
+  // Proposal Details
+  title           String
+  description     String
+  proposalType    String   // POLICY_CHANGE, PARAMETER_UPDATE, FUND_ALLOCATION, TOKENOMICS_CHANGE
+  
+  // Voting
+  votingStart     DateTime
+  votingEnd       DateTime
+  quorum          Float    // Minimum votes required (as percentage)
+  threshold       Float    // Minimum approval percentage
+  
+  // Status
+  status          String   @default("PENDING") // PENDING, ACTIVE, PASSED, REJECTED, EXECUTED
+  
+  // Results
+  totalVotes      Float    @default(0)
+  yesVotes        Float    @default(0)
+  noVotes         Float    @default(0)
+  abstainVotes    Float    @default(0)
+  
+  // Execution
+  executedAt      DateTime?
+  executionHash   String?  // Blockchain transaction hash
+  
+  metadata        String?  // JSON stored as string
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  proposer        User     @relation(fields: [proposerId], references: [id])
+  votes           GovernanceVote[]
+
+  @@index([proposerId])
+  @@index([status])
+  @@index([votingStart, votingEnd])
+}
+
+model GovernanceVote {
+  id              String   @id @default(uuid())
+  proposalId      String
+  voterId         String   // Entity that voted
+  
+  // Vote Details
+  vote            String   // YES, NO, ABSTAIN
+  votingPower     Float    // Based on token holdings
+  weight          Float    // Weighted vote (votingPower * trustScore)
+  
+  // Trust Integration
+  voterTrustScore Float?   // Trust score at time of vote
+  
+  // Metadata
+  metadata        String?  // JSON stored as string
+  createdAt       DateTime @default(now())
+
+  // Relations
+  proposal        GovernanceProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  voter           User              @relation(fields: [voterId], references: [id])
+
+  @@unique([proposalId, voterId])
+  @@index([proposalId])
+  @@index([voterId])
+}
+
+// ============================================
+// Staking & Rewards
+// ============================================
+
+model StakingPool {
+  id              String   @id @default(uuid())
+  tokenId         String   // Token being staked
+  rewardTokenId   String?  // Token used for rewards
+  
+  // Pool Configuration
+  name            String
+  description     String?
+  apy             Float    // Annual Percentage Yield
+  minStakeAmount  Float    @default(0)
+  maxStakeAmount  Float?
+  lockPeriod      Int?     // Lock period in days (null = flexible)
+  
+  // Pool Status
+  totalStaked     Float    @default(0)
+  totalRewards    Float    @default(0)
+  isActive        Boolean  @default(true)
+  
+  // Trust Requirements
+  minTrustScore   Float?   // Minimum trust to stake
+  
+  metadata        String?  // JSON stored as string
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  token           Token    @relation("StakingPoolToken", fields: [tokenId], references: [id], onDelete: Cascade)
+  rewardToken     Token?   @relation("StakingPoolRewardToken", fields: [rewardTokenId], references: [id], onDelete: SetNull)
+  stakes          Stake[]
+  rewards         RewardDistribution[]
+
+  @@index([tokenId])
+  @@index([isActive])
+}
+
+model Stake {
+  id              String   @id @default(uuid())
+  stakerId        String   // Entity staking
+  poolId          String
+  tokenId         String
+  
+  // Stake Details
+  amount          Float
+  lockedUntil     DateTime? // If lock period applies
+  isLocked        Boolean  @default(false)
+  
+  // Rewards
+  totalRewardsEarned Float @default(0)
+  pendingRewards    Float @default(0)
+  
+  // Status
+  status          String   @default("ACTIVE") // ACTIVE, UNSTAKING, UNSTAKED
+  
+  // Trust Integration
+  stakerTrustScore Float?  // Trust score at time of stake
+  
+  metadata        String?  // JSON stored as string
+  stakedAt        DateTime @default(now())
+  unstakedAt      DateTime?
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  staker          User        @relation(fields: [stakerId], references: [id], onDelete: Cascade)
+  pool            StakingPool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  token           Token       @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  @@index([stakerId])
+  @@index([poolId])
+  @@index([tokenId])
+  @@index([status])
+}
+
+model RewardDistribution {
+  id              String   @id @default(uuid())
+  recipientId     String   // Entity receiving reward
+  tokenId         String   // Reward token
+  poolId          String?  // If from staking pool
+  proposalId      String?  // If from governance
+  
+  // Reward Details
+  amount          Float
+  rewardType      String   // STAKING, GOVERNANCE, TRANSACTION, REFERRAL, LEARNING
+  reason          String?  // Why reward was given
+  
+  // Trust Integration
+  recipientTrustScore Float? // Trust score at time of reward
+  
+  // Status
+  status          String   @default("PENDING") // PENDING, DISTRIBUTED, CLAIMED
+  distributedAt   DateTime?
+  claimedAt       DateTime?
+  
+  // Blockchain
+  transactionHash String?
+  
+  metadata        String?  // JSON stored as string
+  createdAt       DateTime @default(now())
+
+  // Relations
+  recipient       User        @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  token           Token        @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  pool            StakingPool? @relation(fields: [poolId], references: [id], onDelete: SetNull)
+
+  @@index([recipientId])
+  @@index([tokenId])
+  @@index([rewardType])
+  @@index([status])
+}
+
+// ============================================
+// Guarantee Token Integration
+// ============================================
+
+model GuaranteeTokenAllocation {
+  id                  String   @id @default(uuid())
+  guaranteeAllocationId String // Links to GuaranteeAllocation
+  tokenId             String   // BTA-GUAR token
+  
+  // Allocation Details
+  tokenAmount         Float    // Amount of guarantee tokens allocated
+  collateralRatio     Float    // Tokens per unit of guarantee
+  lockedUntil         DateTime? // When tokens can be unlocked
+  
+  // Status
+  status              String   @default("LOCKED") // LOCKED, UNLOCKED, BURNED
+  
+  metadata            String?  // JSON stored as string
+  allocatedAt         DateTime @default(now())
+  unlockedAt          DateTime?
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations
+  token               Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  @@index([guaranteeAllocationId])
+  @@index([tokenId])
+  @@index([status])
+}
