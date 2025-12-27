@@ -1,11 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
-import { projectsApi } from '@/lib/api/projects';
-import { useAuth } from '@/lib/hooks/useAuth';
+import { useCreateProject } from '@/lib/queries';
+import { useAuthStore } from '@/lib/stores/auth.store';
+import { useUIStore } from '@/lib/stores/ui.store';
+import Button from '@/components/ui/Button';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 interface ProjectFormData {
   title: string;
@@ -33,10 +36,10 @@ const CATEGORIES = [
 
 export default function CreateProjectPage() {
   const router = useRouter();
-  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const { user, isAuthenticated } = useAuthStore();
+  const { showNotification } = useUIStore();
+  const createProject = useCreateProject();
   const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
 
   const {
     register,
@@ -46,14 +49,16 @@ export default function CreateProjectPage() {
   } = useForm<ProjectFormData>();
 
   // Redirect if not authenticated or not a fundraiser
-  if (!authLoading && (!isAuthenticated || user?.userType !== 'FUNDRAISER')) {
-    router.push('/auth/login');
-    return null;
-  }
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/auth/login');
+    } else if (user && user.userType !== 'FUNDRAISER') {
+      router.push('/projects');
+    }
+  }, [isAuthenticated, user, router]);
 
   const onSubmit = async (data: ProjectFormData) => {
     try {
-      setIsSubmitting(true);
       setError(null);
 
       // Parse images and documents from comma-separated strings
@@ -79,33 +84,46 @@ export default function CreateProjectPage() {
         documents,
       };
 
-      const response = await projectsApi.create(projectData);
+      const response = await createProject.mutateAsync(projectData);
+      
+      // Backend returns { success: true, data: project }
+      // API client returns response.data which is { success: true, data: project }
+      const project = (response as any).data || response;
+      const projectId = project?.id || project?.data?.id;
 
-      if (response.success) {
-        setSubmitSuccess(true);
-        setTimeout(() => {
-          router.push(`/projects/${response.data.id}`);
-        }, 2000);
+      if (projectId) {
+        showNotification({
+          type: 'success',
+          message: 'Project created successfully',
+        });
+        router.push(`/projects/${projectId}`);
       } else {
-        setError('Failed to create project');
+        setError('Project created but ID not found in response');
       }
     } catch (err: any) {
       console.error('Error creating project:', err);
-      setError(err.response?.data?.message || 'Failed to create project');
-    } finally {
-      setIsSubmitting(false);
+      const errorMessage = err.response?.data?.error?.message || 
+                          err.response?.data?.message ||
+                          err.message || 
+                          'Failed to create project';
+      setError(errorMessage);
+      showNotification({
+        type: 'error',
+        message: errorMessage,
+      });
     }
   };
 
-  if (authLoading) {
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
+        <LoadingSpinner size="lg" />
       </div>
     );
+  }
+
+  if (user && user.userType !== 'FUNDRAISER') {
+    return null; // Will redirect
   }
 
   return (
@@ -121,12 +139,6 @@ export default function CreateProjectPage() {
 
           <div className="bg-white shadow rounded-lg p-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-6">Create New Project</h1>
-
-            {submitSuccess && (
-              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-6">
-                Project created successfully! Redirecting...
-              </div>
-            )}
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
@@ -346,19 +358,25 @@ export default function CreateProjectPage() {
 
               {/* Submit Button */}
               <div className="flex justify-end space-x-4 pt-4">
-                <Link
-                  href="/projects"
-                  className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
+                <Link href="/projects">
+                  <Button variant="secondary">
+                    Cancel
+                  </Button>
                 </Link>
-                <button
+                <Button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  variant="primary"
+                  disabled={createProject.isPending}
                 >
-                  {isSubmitting ? 'Creating...' : 'Create Project'}
-                </button>
+                  {createProject.isPending ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <LoadingSpinner size="sm" />
+                      Creating...
+                    </span>
+                  ) : (
+                    'Create Project'
+                  )}
+                </Button>
               </div>
             </form>
           </div>

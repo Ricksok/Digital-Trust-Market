@@ -43,6 +43,42 @@ export const useCourse = (courseId: string) => {
 };
 
 /**
+ * Get course sections query hook
+ */
+export const useCourseSections = (courseId: string) => {
+  return useQuery({
+    queryKey: ['learning', 'courses', courseId, 'sections'],
+    queryFn: async () => {
+      const response = await learningApi.getCourseSections(courseId);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to fetch course sections');
+      }
+      return response.data;
+    },
+    enabled: !!courseId,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+};
+
+/**
+ * Get gradebook query hook
+ */
+export const useGradebook = (enrollmentId: string) => {
+  return useQuery({
+    queryKey: ['learning', 'gradebook', enrollmentId],
+    queryFn: async () => {
+      const response = await learningApi.getGradebook(enrollmentId);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to fetch gradebook');
+      }
+      return response.data;
+    },
+    enabled: !!enrollmentId,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+};
+
+/**
  * Get user learning profile query hook
  */
 export const useLearningProfile = () => {

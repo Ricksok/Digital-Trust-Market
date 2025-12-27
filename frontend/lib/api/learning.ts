@@ -22,6 +22,14 @@ export interface Course {
   progress?: number;
   isCompleted?: boolean;
   hasCredential?: boolean;
+  price?: number;
+  isPremium?: boolean;
+  currency?: string;
+  enrollment?: Enrollment;
+  sections?: CourseSection[];
+  assignments?: Assignment[];
+  forums?: Forum[];
+  gradebook?: Gradebook;
 }
 
 export interface Enrollment {
@@ -59,6 +67,53 @@ export interface UserLearningProfile {
   requiredCourses: Course[];
   recommendedCourses: Course[];
   recentEnrollments: Course[];
+}
+
+export interface CourseSection {
+  id: string;
+  courseId: string;
+  title: string;
+  description?: string;
+  order: number;
+  isVisible: boolean;
+  content?: any;
+  assignments?: Assignment[];
+  forums?: Forum[];
+  completionStatus?: string;
+}
+
+export interface Assignment {
+  id: string;
+  courseId: string;
+  sectionId?: string;
+  title: string;
+  description?: string;
+  assignmentType: string;
+  dueDate: string;
+  maxScore: number;
+  passingScore: number;
+  isActive: boolean;
+}
+
+export interface Forum {
+  id: string;
+  courseId: string;
+  sectionId?: string;
+  title: string;
+  description?: string;
+  forumType: string;
+  postCount: number;
+  isActive: boolean;
+}
+
+export interface Gradebook {
+  id: string;
+  enrollmentId: string;
+  userId: string;
+  courseId: string;
+  finalScore: number;
+  finalGrade?: string;
+  isPassed: boolean;
 }
 
 export interface LearningResponse<T = any> {
@@ -203,6 +258,22 @@ export const learningApi = {
    */
   deleteCourse: async (courseId: string): Promise<LearningResponse<void>> => {
     const response = await apiClient.delete(`/api/learning/admin/courses/${courseId}`);
+    return response.data;
+  },
+
+  /**
+   * Get course sections
+   */
+  getCourseSections: async (courseId: string): Promise<LearningResponse<any[]>> => {
+    const response = await apiClient.get(`/api/learning/courses/${courseId}/sections`);
+    return response.data;
+  },
+
+  /**
+   * Get gradebook for enrollment
+   */
+  getGradebook: async (enrollmentId: string): Promise<LearningResponse<any>> => {
+    const response = await apiClient.get(`/api/learning/enrollments/${enrollmentId}/gradebook`);
     return response.data;
   },
 };

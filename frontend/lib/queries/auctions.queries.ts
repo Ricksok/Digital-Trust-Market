@@ -215,3 +215,84 @@ export const useCloseAuction = () => {
   });
 };
 
+/**
+ * Update auction mutation hook
+ */
+export const useUpdateAuction = () => {
+  const queryClient = useQueryClient();
+  const { showNotification } = useUIStore();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Auction> }) => auctionsApi.update(id, data),
+    onSuccess: (response, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['auctions'] });
+      queryClient.invalidateQueries({ queryKey: ['auctions', variables.id] });
+      showNotification({
+        type: 'success',
+        message: 'Auction updated successfully',
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error?.message || 'Failed to update auction';
+      showNotification({
+        type: 'error',
+        message: errorMessage,
+      });
+    },
+  });
+};
+
+/**
+ * Cancel auction mutation hook
+ */
+export const useCancelAuction = () => {
+  const queryClient = useQueryClient();
+  const { showNotification } = useUIStore();
+
+  return useMutation({
+    mutationFn: (id: string) => auctionsApi.cancel(id),
+    onSuccess: (response, id) => {
+      queryClient.invalidateQueries({ queryKey: ['auctions'] });
+      queryClient.invalidateQueries({ queryKey: ['auctions', id] });
+      showNotification({
+        type: 'success',
+        message: 'Auction cancelled successfully',
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error?.message || 'Failed to cancel auction';
+      showNotification({
+        type: 'error',
+        message: errorMessage,
+      });
+    },
+  });
+};
+
+/**
+ * Extend auction mutation hook
+ */
+export const useExtendAuction = () => {
+  const queryClient = useQueryClient();
+  const { showNotification } = useUIStore();
+
+  return useMutation({
+    mutationFn: ({ id, newEndTime }: { id: string; newEndTime: string }) => auctionsApi.extend(id, newEndTime),
+    onSuccess: (response, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['auctions'] });
+      queryClient.invalidateQueries({ queryKey: ['auctions', variables.id] });
+      showNotification({
+        type: 'success',
+        message: 'Auction extended successfully',
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error?.message || 'Failed to extend auction';
+      showNotification({
+        type: 'error',
+        message: errorMessage,
+      });
+    },
+  });
+};
+

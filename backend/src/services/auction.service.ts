@@ -449,3 +449,332 @@ export const withdrawBid = async (bidId: string, bidderId: string) => {
   return updated;
 };
 
+/**
+ * Cancel an auction
+ */
+export const cancelAuction = async (auctionId: string) => {
+  const auctionModel = getAuctionModel();
+  const auction = await auctionModel.findUnique({
+    where: { id: auctionId },
+    include: {
+      bids: {
+        where: { status: BidStatus.PENDING },
+      },
+    },
+  });
+
+  if (!auction) {
+    throw createError('Auction not found', 404);
+  }
+
+  if (auction.status === AuctionStatus.CLOSED) {
+    throw createError('Cannot cancel a closed auction', 400);
+  }
+
+  if (auction.status === AuctionStatus.CANCELLED) {
+    throw createError('Auction is already cancelled', 400);
+  }
+
+  // Update auction status
+  const updated = await auctionModel.update({
+    where: { id: auctionId },
+    data: {
+      status: AuctionStatus.CANCELLED,
+    },
+  });
+
+  // Reject all pending bids
+  if (auction.bids.length > 0) {
+    await prisma.bid.updateMany({
+      where: {
+        auctionId,
+        status: BidStatus.PENDING,
+      },
+      data: {
+        status: BidStatus.REJECTED,
+      },
+    });
+  }
+
+  return updated;
+};
+
+/**
+ * Update auction details
+ */
+export const updateAuction = async (
+  auctionId: string,
+  data: {
+    title?: string;
+    description?: string;
+    reservePrice?: number;
+    targetAmount?: number;
+    startTime?: Date;
+    endTime?: Date;
+    minTrustScore?: number;
+    trustWeight?: number;
+    metadata?: any;
+  }
+) => {
+  const auctionModel = getAuctionModel();
+  const auction = await auctionModel.findUnique({
+    where: { id: auctionId },
+  });
+
+  if (!auction) {
+    throw createError('Auction not found', 404);
+  }
+
+  // Can only update if auction is PENDING
+  if (auction.status !== AuctionStatus.PENDING) {
+    throw createError('Can only update auctions that are pending', 400);
+  }
+
+  // Validate timing if endTime is being updated
+  if (data.endTime) {
+    const startTime = data.startTime ? new Date(data.startTime) : auction.startTime;
+    if (data.endTime <= startTime) {
+      throw createError('End time must be after start time', 400);
+    }
+  }
+
+  const updated = await auctionModel.update({
+    where: { id: auctionId },
+    data: {
+      title: data.title,
+      description: data.description,
+      reservePrice: data.reservePrice,
+      targetAmount: data.targetAmount,
+      startTime: data.startTime ? new Date(data.startTime) : undefined,
+      endTime: data.endTime ? new Date(data.endTime) : undefined,
+      minTrustScore: data.minTrustScore,
+      trustWeight: data.trustWeight,
+      metadata: data.metadata ? JSON.stringify(data.metadata) : undefined,
+    },
+  });
+
+  return updated;
+};
+
+/**
+ * Extend auction end time
+ */
+export const extendAuction = async (auctionId: string, newEndTime: Date) => {
+  const auctionModel = getAuctionModel();
+  const auction = await auctionModel.findUnique({
+    where: { id: auctionId },
+  });
+
+  if (!auction) {
+    throw createError('Auction not found', 404);
+  }
+
+  if (auction.status !== AuctionStatus.ACTIVE) {
+    throw createError('Can only extend active auctions', 400);
+  }
+
+  if (newEndTime <= auction.endTime) {
+    throw createError('New end time must be after current end time', 400);
+  }
+
+  const updated = await auctionModel.update({
+    where: { id: auctionId },
+    data: {
+      endTime: newEndTime,
+      extendedEndTime: newEndTime,
+    },
+  });
+
+  return updated;
+};
+
+/**
+ * Get bids for a user
+ */
+export const getUserBids = async (userId: string, query: any) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      auctionType,
+      auctionId,
+    } = query;
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const where: any = {
+      bidderId: userId,
+    };
+
+    if (status) where.status = status;
+    if (auctionId) where.auctionId = auctionId;
+    if (auctionType) {
+      where.auction = {
+        auctionType,
+      };
+    }
+
+    const [bids, total] = await Promise.all([
+      prisma.bid.findMany({
+        where,
+        skip,
+        take: Number(limit),
+        include: {
+          auction: {
+            include: {
+              project: {
+                select: {
+                  id: true,
+                  title: true,
+                  status: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: { submittedAt: 'desc' },
+      }),
+      prisma.bid.count({ where }),
+    ]);
+
+    return {
+      bids: bids || [],
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: total || 0,
+        pages: Math.ceil((total || 0) / Number(limit)),
+      },
+    };
+  } catch (error: any) {
+    console.error('Error in getUserBids service:', error);
+    if (error.code === 'P2021' || error.message?.includes('does not exist')) {
+      console.warn('Bid table does not exist yet. Run migration first.');
+      return {
+        bids: [],
+        pagination: {
+          page: 1,
+          limit: 10,
+          total: 0,
+          pages: 0,
+        },
+      };
+    }
+    throw error;
+  }
+};
+
+/**
+ * Get bid by ID
+ */
+export const getBidById = async (bidId: string, userId?: string) => {
+  const bid = await prisma.bid.findUnique({
+    where: { id: bidId },
+    include: {
+      auction: {
+        include: {
+          project: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
+            },
+          },
+        },
+      },
+      bidder: {
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+    },
+  });
+
+  if (!bid) {
+    throw createError('Bid not found', 404);
+  }
+
+  // Check permissions - only bidder or auction owner can view
+  if (userId && bid.bidderId !== userId) {
+    // Check if user is auction owner (would need project owner check)
+    // For now, allow viewing own bids only
+    throw createError('Access denied', 403);
+  }
+
+  return bid;
+};
+
+/**
+ * Update a bid
+ */
+export const updateBid = async (
+  bidId: string,
+  bidderId: string,
+  data: {
+    price?: number;
+    amount?: number;
+    notes?: string;
+    metadata?: any;
+  }
+) => {
+  const bid = await prisma.bid.findUnique({
+    where: { id: bidId },
+    include: { auction: true },
+  });
+
+  if (!bid) {
+    throw createError('Bid not found', 404);
+  }
+
+  if (bid.bidderId !== bidderId) {
+    throw createError('Unauthorized', 403);
+  }
+
+  if (bid.status !== BidStatus.PENDING) {
+    throw createError('Only pending bids can be updated', 400);
+  }
+
+  if (bid.auction.status !== AuctionStatus.ACTIVE) {
+    throw createError('Cannot update bid in inactive auction', 400);
+  }
+
+  // Recalculate effective bid if price changed
+  let effectiveBid = bid.effectiveBid;
+  if (data.price !== undefined) {
+    const trustScore = await trustService.getOrCreateTrustScore(bidderId);
+    effectiveBid = data.price * bid.auction.trustWeight * (trustScore.trustScore / 100);
+
+    // Check reserve price
+    if (bid.auction.reservePrice && data.price < bid.auction.reservePrice) {
+      throw createError(`Bid must be at least ${bid.auction.reservePrice}`, 400);
+    }
+  }
+
+  const updated = await prisma.bid.update({
+    where: { id: bidId },
+    data: {
+      price: data.price,
+      amount: data.amount,
+      notes: data.notes,
+      effectiveBid,
+      metadata: data.metadata ? JSON.stringify(data.metadata) : undefined,
+    },
+    include: {
+      auction: true,
+      bidder: {
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+    },
+  });
+
+  return updated;
+};
+

@@ -61,6 +61,9 @@ export interface CreateCourseInput {
   isRequired?: boolean;
   expiryDays?: number;
   metadata?: Record<string, any>;
+  price?: number;
+  isPremium?: boolean;
+  currency?: string;
 }
 
 export interface UpdateCourseInput {
@@ -81,6 +84,9 @@ export interface UpdateCourseInput {
   expiryDays?: number;
   metadata?: Record<string, any>;
   publishedAt?: Date;
+  price?: number;
+  isPremium?: boolean;
+  currency?: string;
 }
 
 export interface EnrollInCourseInput {
@@ -137,5 +143,174 @@ export interface UserLearningProfile {
   requiredCourses: CourseWithProgress[];
   recommendedCourses: CourseWithProgress[];
   recentEnrollments: CourseWithProgress[];
+}
+
+// ============================================
+// Course Sections
+// ============================================
+
+export interface CreateCourseSectionInput {
+  title: string;
+  description?: string;
+  order?: number;
+  content?: any[];
+}
+
+export interface UpdateCourseSectionInput {
+  title?: string;
+  description?: string;
+  order?: number;
+  content?: any[];
+  isVisible?: boolean;
+}
+
+// ============================================
+// Assignments
+// ============================================
+
+export enum AssignmentType {
+  FILE_UPLOAD = 'FILE_UPLOAD',
+  ESSAY = 'ESSAY',
+  ONLINE_TEXT = 'ONLINE_TEXT',
+  OFFLINE = 'OFFLINE',
+}
+
+export enum GradingType {
+  MANUAL = 'MANUAL',
+  AUTO = 'AUTO',
+  RUBRIC = 'RUBRIC',
+}
+
+export interface CreateAssignmentInput {
+  sectionId?: string;
+  title: string;
+  description?: string;
+  assignmentType?: AssignmentType;
+  maxFileSize?: number;
+  allowedFileTypes?: string[];
+  maxFiles?: number;
+  maxScore?: number;
+  passingScore?: number;
+  gradingType?: GradingType;
+  dueDate?: Date;
+  allowLateSubmissions?: boolean;
+  latePenalty?: number;
+}
+
+export interface UpdateAssignmentInput {
+  title?: string;
+  description?: string;
+  sectionId?: string;
+  assignmentType?: AssignmentType;
+  maxFileSize?: number;
+  allowedFileTypes?: string[];
+  maxFiles?: number;
+  maxScore?: number;
+  passingScore?: number;
+  gradingType?: GradingType;
+  dueDate?: Date;
+  allowLateSubmissions?: boolean;
+  latePenalty?: number;
+  isActive?: boolean;
+}
+
+export interface SubmitAssignmentInput {
+  assignmentId: string;
+  enrollmentId?: string;
+  submissionType: string;
+  fileUrls?: string[];
+  onlineText?: string;
+  notes?: string;
+}
+
+export interface GradeSubmissionInput {
+  score: number;
+  grade?: string;
+  feedback?: string;
+}
+
+// ============================================
+// Forums
+// ============================================
+
+export enum ForumType {
+  STANDARD = 'STANDARD',
+  Q_AND_A = 'Q_AND_A',
+  SINGLE_DISCUSSION = 'SINGLE_DISCUSSION',
+}
+
+export interface CreateForumInput {
+  sectionId?: string;
+  title: string;
+  description?: string;
+  forumType?: ForumType;
+  allowAnonymous?: boolean;
+  requireInitialPost?: boolean;
+  isModerated?: boolean;
+}
+
+export interface CreateForumPostInput {
+  subject?: string;
+  message: string;
+  parentPostId?: string;
+}
+
+export interface UpdateForumPostInput {
+  subject?: string;
+  message?: string;
+}
+
+// ============================================
+// Gradebook
+// ============================================
+
+export interface AddGradebookEntryInput {
+  enrollmentId: string;
+  activityType: string;
+  activityId: string;
+  activityTitle: string;
+  score: number;
+  maxScore: number;
+  grade?: string;
+  weight?: number;
+  feedback?: string;
+}
+
+export interface UpdateGradebookEntryInput {
+  score?: number;
+  maxScore?: number;
+  grade?: string;
+  weight?: number;
+  feedback?: string;
+}
+
+// ============================================
+// Activity Completion
+// ============================================
+
+export enum ActivityType {
+  QUIZ = 'QUIZ',
+  ASSIGNMENT = 'ASSIGNMENT',
+  FORUM = 'FORUM',
+  RESOURCE = 'RESOURCE',
+  VIDEO = 'VIDEO',
+  SECTION = 'SECTION',
+}
+
+export enum ActivityCompletionStatus {
+  NOT_STARTED = 'NOT_STARTED',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
+  PASSED = 'PASSED',
+  FAILED = 'FAILED',
+}
+
+export interface UpdateActivityCompletionInput {
+  enrollmentId: string;
+  activityType: string;
+  activityId: string;
+  sectionId?: string;
+  status: string;
+  progress: number;
 }
 

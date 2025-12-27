@@ -17,3 +17,4 @@ Write-Host "✅ Development mode started!" -ForegroundColor Green
 Write-Host "📝 Changes will reflect immediately (hot reload enabled)" -ForegroundColor Cyan
 Write-Host "🛑 Press Ctrl+C to stop" -ForegroundColor Yellow
 
+

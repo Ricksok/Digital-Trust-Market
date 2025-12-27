@@ -12,6 +12,7 @@ export interface GuaranteeRequest {
   auctionId?: string;
   allocatedCoverage?: number;
   requestedAt: string;
+  expiresAt?: string;
   issuer?: {
     id: string;
     email: string;

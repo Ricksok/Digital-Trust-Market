@@ -364,3 +364,151 @@ export const getUserStakes = async (stakerId: string) => {
   return stakesWithRewards;
 };
 
+/**
+ * Get staking pool by ID
+ */
+export const getStakingPoolById = async (poolId: string) => {
+  const poolModel = getStakingPoolModel();
+  const pool = await poolModel.findUnique({
+    where: { id: poolId },
+    include: {
+      token: true,
+      rewardToken: true,
+      stakes: {
+        include: {
+          staker: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+        orderBy: { stakedAt: 'desc' },
+        take: 50, // Limit to recent stakes
+      },
+      _count: {
+        select: {
+          stakes: true,
+        },
+      },
+    },
+  });
+
+  if (!pool) {
+    throw createError('Staking pool not found', 404);
+  }
+
+  // Calculate pool statistics
+  const activeStakes = pool.stakes.filter((s: any) => s.status === 'ACTIVE');
+  const totalActiveStakers = new Set(activeStakes.map((s: any) => s.stakerId)).size;
+
+  return {
+    ...pool,
+    stats: {
+      totalStakes: pool._count.stakes,
+      activeStakes: activeStakes.length,
+      totalActiveStakers,
+      averageStakeAmount: activeStakes.length > 0
+        ? activeStakes.reduce((sum: number, s: any) => sum + s.amount, 0) / activeStakes.length
+        : 0,
+    },
+  };
+};
+
+/**
+ * Update staking pool
+ */
+export const updateStakingPool = async (
+  poolId: string,
+  data: {
+    name?: string;
+    description?: string;
+    apy?: number;
+    minStakeAmount?: number;
+    maxStakeAmount?: number;
+    lockPeriod?: number;
+    minTrustScore?: number;
+    isActive?: boolean;
+  }
+) => {
+  const poolModel = getStakingPoolModel();
+  const pool = await poolModel.findUnique({
+    where: { id: poolId },
+  });
+
+  if (!pool) {
+    throw createError('Staking pool not found', 404);
+  }
+
+  // Can't update if there are active stakes and changing critical fields
+  if (data.apy !== undefined || data.lockPeriod !== undefined) {
+    const activeStakes = await prisma.stake.count({
+      where: {
+        poolId,
+        status: 'ACTIVE',
+      },
+    });
+
+    if (activeStakes > 0) {
+      throw createError('Cannot modify APY or lock period when pool has active stakes', 400);
+    }
+  }
+
+  const updated = await poolModel.update({
+    where: { id: poolId },
+    data: {
+      name: data.name,
+      description: data.description,
+      apy: data.apy,
+      minStakeAmount: data.minStakeAmount,
+      maxStakeAmount: data.maxStakeAmount,
+      lockPeriod: data.lockPeriod,
+      minTrustScore: data.minTrustScore,
+      isActive: data.isActive,
+    },
+    include: {
+      token: true,
+      rewardToken: true,
+    },
+  });
+
+  return updated;
+};
+
+/**
+ * Deactivate staking pool
+ */
+export const deactivateStakingPool = async (poolId: string) => {
+  const poolModel = getStakingPoolModel();
+  const pool = await poolModel.findUnique({
+    where: { id: poolId },
+    include: {
+      _count: {
+        select: {
+          stakes: true,
+        },
+      },
+    },
+  });
+
+  if (!pool) {
+    throw createError('Staking pool not found', 404);
+  }
+
+  // Deactivate pool (prevent new stakes but allow unstaking)
+  const updated = await poolModel.update({
+    where: { id: poolId },
+    data: {
+      isActive: false,
+    },
+    include: {
+      token: true,
+      rewardToken: true,
+    },
+  });
+
+  return updated;
+};
+

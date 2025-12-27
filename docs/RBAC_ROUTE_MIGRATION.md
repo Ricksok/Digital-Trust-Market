@@ -126,3 +126,4 @@ The `authorize()` middleware is backward compatible and will work with both syst
 
 **Status**: Key routes migrated. Ready for database migration and testing.
 
+

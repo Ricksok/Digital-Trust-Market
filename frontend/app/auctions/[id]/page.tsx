@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Auction, Bid } from '@/lib/api/auctions';
-import { useAuction, usePlaceBid } from '@/lib/queries';
+import { useAuction, usePlaceBid, useCancelAuction, useExtendAuction, useCloseAuction } from '@/lib/queries';
 import { useAuthStore } from '@/lib/stores/auth.store';
 
 export default function AuctionDetailPage() {
@@ -15,9 +15,14 @@ export default function AuctionDetailPage() {
 
   const { data, isLoading, error } = useAuction(auctionId || '');
   const placeBid = usePlaceBid();
+  const cancelAuction = useCancelAuction();
+  const extendAuction = useExtendAuction();
+  const closeAuction = useCloseAuction();
   
   const [bidPrice, setBidPrice] = useState('');
   const [bidAmount, setBidAmount] = useState('');
+  const [showExtendModal, setShowExtendModal] = useState(false);
+  const [newEndTime, setNewEndTime] = useState('');
 
   useEffect(() => {
     if (!auctionId) return;
@@ -201,6 +206,93 @@ export default function AuctionDetailPage() {
             <p>Starts: {formatDate(auction.startTime)}</p>
             <p>Ends: {formatDate(auction.endTime)}</p>
           </div>
+
+          {/* Admin/Auction Owner Actions */}
+          {(user?.role === 'ADMIN' || user?.userType === 'FUNDRAISER') && (
+            <div className="flex gap-2 mt-4">
+              {auction.status === 'ACTIVE' && (
+                <>
+                  <button
+                    onClick={() => closeAuction.mutate(auctionId)}
+                    disabled={closeAuction.isPending}
+                    className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50"
+                  >
+                    {closeAuction.isPending ? 'Closing...' : 'Close Auction'}
+                  </button>
+                  <button
+                    onClick={() => setShowExtendModal(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Extend Auction
+                  </button>
+                </>
+              )}
+              {(auction.status === 'PENDING' || auction.status === 'ACTIVE') && (
+                <button
+                  onClick={() => {
+                    if (confirm('Are you sure you want to cancel this auction?')) {
+                      cancelAuction.mutate(auctionId);
+                    }
+                  }}
+                  disabled={cancelAuction.isPending}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+                >
+                  {cancelAuction.isPending ? 'Cancelling...' : 'Cancel Auction'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Extend Auction Modal */}
+          {showExtendModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                <h3 className="text-lg font-semibold mb-4">Extend Auction</h3>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    New End Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={newEndTime}
+                    onChange={(e) => setNewEndTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    min={new Date().toISOString().slice(0, 16)}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      if (newEndTime) {
+                        extendAuction.mutate(
+                          { id: auctionId, newEndTime: new Date(newEndTime).toISOString() },
+                          {
+                            onSuccess: () => {
+                              setShowExtendModal(false);
+                              setNewEndTime('');
+                            },
+                          }
+                        );
+                      }
+                    }}
+                    disabled={!newEndTime || extendAuction.isPending}
+                    className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
+                  >
+                    {extendAuction.isPending ? 'Extending...' : 'Extend'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowExtendModal(false);
+                      setNewEndTime('');
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {canBid && (

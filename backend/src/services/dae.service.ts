@@ -1,106 +1,122 @@
 /**
- * DAE (Dynamic Analytics Engine) Integration Service
- * Feature 0.1: Onboarding & Identity System
- * 
- * This service handles integration with the Dynamic Analytics Engine
- * for transaction cap calculation and risk assessment.
+ * Dynamic Analytics Engine (DAE) Service
+ * Handles transaction cap calculations and risk assessments
  */
 
 import { PrismaClient } from '@prisma/client';
-import { TransactionCapsResult, EntityType } from '../types/onboarding.types';
-import { createError } from '../middleware/errorHandler';
 
 const prisma = new PrismaClient();
 
 /**
- * Calculate initial transaction caps for a new user
- * 
- * @param userId - User ID
- * @param entityType - Entity type
- * @param trustBand - Trust band from DTE
- * @returns Transaction caps result
+ * Calculate transaction caps for a user
+ * This is a simplified implementation - can be enhanced with ML models
  */
 export async function calculateTransactionCaps(
   userId: string,
-  entityType: EntityType | null,
-  trustBand: string | null
-): Promise<TransactionCapsResult> {
+  entityType?: string,
+  trustBand?: string | null
+): Promise<{ transactionCap: number }> {
   try {
-    // TODO: Replace with actual DAE API call
-    // For now, we'll use a simple calculation based on entity type and trust band
-    
-    // Base caps by entity type
-    const baseCaps: Record<string, number> = {
-      [EntityType.COMPANY]: 100000,
-      [EntityType.INSTITUTIONAL_BUYER]: 500000,
-      [EntityType.SACCO]: 200000,
-      [EntityType.FUND]: 1000000,
-      [EntityType.INDIVIDUAL]: 10000,
-    };
-    
-    const baseCap = entityType ? baseCaps[entityType] || 10000 : 10000;
-    
-    // Trust band multipliers
-    const trustMultipliers: Record<string, number> = {
-      'A': 1.0,
-      'B': 0.75,
-      'C': 0.5,
-      'D': 0.25,
-    };
-    
-    const multiplier = trustBand ? trustMultipliers[trustBand] || 0.25 : 0.25;
-    const transactionCap = Math.floor(baseCap * multiplier);
-    
-    // Risk level based on trust band
-    let riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
-    if (trustBand === 'A' || trustBand === 'B') {
-      riskLevel = 'LOW';
-    } else if (trustBand === 'C') {
-      riskLevel = 'MEDIUM';
-    } else {
-      riskLevel = 'HIGH';
-    }
-    
-    // Update user with transaction cap
-    await prisma.user.update({
+    const user = await prisma.user.findUnique({
       where: { id: userId },
-      data: { transactionCap },
+      include: {
+        trustScore: true,
+        behaviorMetrics: true,
+        kycRecord: true,
+      },
     });
-    
+
+    // Use provided trustBand or get from user
+    const userTrustBand = trustBand || user?.trustBand;
+
+    if (!user) {
+      // Default cap for unknown users
+      return { transactionCap: 500 };
+    }
+
+    // Base cap
+    let transactionCap = 500;
+
+    // Adjust based on trust band
+    if (userTrustBand === 'PLATINUM') {
+      transactionCap = 50000;
+    } else if (userTrustBand === 'GOLD') {
+      transactionCap = 25000;
+    } else if (userTrustBand === 'SILVER') {
+      transactionCap = 10000;
+    } else if (userTrustBand === 'BRONZE') {
+      transactionCap = 5000;
+    } else {
+      // NEW trust band - default cap
+      transactionCap = 500;
+    }
+
+    // Adjust based on KYC status
+    if (user.kycRecord?.status === 'APPROVED') {
+      transactionCap *= 2;
+    }
+
+    // Adjust based on verification
+    if (user.isVerified) {
+      transactionCap *= 1.5;
+    }
+
+    // Adjust based on behavior metrics
+    if (user.behaviorMetrics) {
+      const metrics = user.behaviorMetrics;
+      const successRate = metrics.totalTransactions > 0
+        ? metrics.successfulTransactions / metrics.totalTransactions
+        : 0;
+
+      if (successRate > 0.95 && metrics.totalTransactions > 10) {
+        // High success rate - increase cap
+        transactionCap *= 1.2;
+      }
+      
+      const totalDisputes = (metrics.disputesWon || 0) + (metrics.disputesLost || 0);
+      if (successRate < 0.7 || totalDisputes > 3) {
+        // Low success rate or many disputes - decrease cap
+        transactionCap *= 0.7;
+      }
+    }
+
     return {
-      transactionCap,
-      dailyCap: transactionCap * 0.1, // 10% of total cap per day
-      monthlyCap: transactionCap * 0.5, // 50% of total cap per month
-      riskLevel,
+      transactionCap: Math.round(transactionCap),
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error calculating transaction caps:', error);
-    throw createError('Failed to calculate transaction caps', 500);
+    // Return default cap on error
+    return { transactionCap: 500 };
   }
 }
 
 /**
- * Future: Update transaction caps based on performance
- * This will be called periodically or when trust improves
+ * Check if a transaction amount is within caps
  */
-export async function updateTransactionCaps(
+export async function isWithinCaps(
   userId: string,
-  newTrustBand: string
-): Promise<TransactionCapsResult> {
-  // TODO: Implement cap updates based on trust improvements
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { entityType: true },
-  });
-  
-  if (!user) {
-    throw createError('User not found', 404);
-  }
-  
-  return calculateTransactionCaps(
-    userId,
-    user.entityType as EntityType | null,
-    newTrustBand
-  );
-}
+  amount: number
+): Promise<{ allowed: boolean; reason?: string }> {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { trustBand: true, entityType: true },
+    });
+    
+    const caps = await calculateTransactionCaps(userId, user?.entityType || undefined, user?.trustBand || undefined);
+    
+    if (amount > caps.transactionCap) {
+      return {
+        allowed: false,
+        reason: `Transaction amount exceeds transaction cap of ${caps.transactionCap}`,
+      };
+    }
 
+    // TODO: Check daily/weekly/monthly caps by querying transaction history
+    // For now, just check transaction cap
+    return { allowed: true };
+  } catch (error) {
+    console.error('Error checking transaction caps:', error);
+    return { allowed: false, reason: 'Error checking transaction caps' };
+  }
+}

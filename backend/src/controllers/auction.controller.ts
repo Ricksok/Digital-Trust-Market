@@ -85,3 +85,61 @@ export const withdrawBid = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const cancelAuction = async (req: AuthRequest, res: Response) => {
+  try {
+    const auction = await auctionService.cancelAuction(req.params.id);
+    res.json({ success: true, data: auction, message: 'Auction cancelled successfully' });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, error: { message: error.message } });
+  }
+};
+
+export const updateAuction = async (req: AuthRequest, res: Response) => {
+  try {
+    const auction = await auctionService.updateAuction(req.params.id, req.body);
+    res.json({ success: true, data: auction, message: 'Auction updated successfully' });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, error: { message: error.message } });
+  }
+};
+
+export const extendAuction = async (req: AuthRequest, res: Response) => {
+  try {
+    const { newEndTime } = req.body;
+    if (!newEndTime) {
+      return res.status(400).json({ success: false, error: { message: 'newEndTime is required' } });
+    }
+    const auction = await auctionService.extendAuction(req.params.id, new Date(newEndTime));
+    res.json({ success: true, data: auction, message: 'Auction extended successfully' });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, error: { message: error.message } });
+  }
+};
+
+export const getUserBids = async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await auctionService.getUserBids(req.user!.id, req.query);
+    res.json({ success: true, data: result.bids, pagination: result.pagination });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, error: { message: error.message } });
+  }
+};
+
+export const getBidById = async (req: AuthRequest, res: Response) => {
+  try {
+    const bid = await auctionService.getBidById(req.params.id, req.user?.id);
+    res.json({ success: true, data: bid });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, error: { message: error.message } });
+  }
+};
+
+export const updateBid = async (req: AuthRequest, res: Response) => {
+  try {
+    const bid = await auctionService.updateBid(req.params.id, req.user!.id, req.body);
+    res.json({ success: true, data: bid, message: 'Bid updated successfully' });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, error: { message: error.message } });
+  }
+};
+

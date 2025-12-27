@@ -225,3 +225,4 @@ Enhanced the seed data script to include comprehensive test data for:
 - Trust bands are automatically assigned based on learning progress
 - Learning outcomes unlock features that can be gated by middleware
 
+

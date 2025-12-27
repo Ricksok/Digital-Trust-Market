@@ -133,15 +133,12 @@ export default function GovernancePage() {
             </button>
           </div>
           {(user?.role === 'ADMIN' || user?.userType === 'INVESTOR') && (
-            <button
-              onClick={() => {
-                // TODO: Create /governance/create page or implement modal
-                alert('Create proposal feature coming soon!');
-              }}
-              className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
+            <Link
+              href="/governance/create"
+              className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 inline-block"
             >
               Create Proposal
-            </button>
+            </Link>
           )}
         </div>
 
@@ -149,15 +146,12 @@ export default function GovernancePage() {
           <div className="bg-white shadow rounded-lg p-8 text-center">
             <p className="text-gray-500">No proposals found.</p>
             {(user?.role === 'ADMIN' || user?.userType === 'INVESTOR') && (
-              <button
-                onClick={() => {
-                  // TODO: Create /governance/create page or implement modal
-                  alert('Create proposal feature coming soon!');
-                }}
+              <Link
+                href="/governance/create"
                 className="mt-4 inline-block text-primary-600 hover:text-primary-700"
               >
                 Create the first proposal
-              </button>
+              </Link>
             )}
           </div>
         ) : (
@@ -166,15 +160,12 @@ export default function GovernancePage() {
               <div key={proposal.id} className="bg-white shadow rounded-lg p-6">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex-1">
-                    <button
-                      onClick={() => {
-                        // TODO: Create /governance/[id] page or show details in modal
-                        alert(`Proposal details for "${proposal.title}" coming soon!`);
-                      }}
+                    <Link
+                      href={`/governance/${proposal.id}`}
                       className="text-xl font-semibold text-gray-900 hover:text-primary-600 text-left"
                     >
                       {proposal.title}
-                    </button>
+                    </Link>
                     <p className="text-sm text-gray-500 mt-1">
                       {proposal.proposalType} • Proposed by {proposal.proposer?.firstName} {proposal.proposer?.lastName}
                     </p>
@@ -215,25 +206,19 @@ export default function GovernancePage() {
                 </div>
 
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      // TODO: Create /governance/[id] page or show details in modal
-                      alert(`Proposal details for "${proposal.title}" coming soon!`);
-                    }}
-                    className="flex-1 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 text-center"
+                  <Link
+                    href={`/governance/${proposal.id}`}
+                    className="flex-1 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 text-center inline-block"
                   >
                     View Details
-                  </button>
+                  </Link>
                   {proposal.status === 'ACTIVE' && (
-                    <button
-                      onClick={() => {
-                        // TODO: Create /governance/[id]/vote page or implement voting modal
-                        alert(`Voting for "${proposal.title}" coming soon!`);
-                      }}
-                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-center"
+                    <Link
+                      href={`/governance/${proposal.id}/vote`}
+                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-center inline-block"
                     >
                       Vote
-                    </button>
+                    </Link>
                   )}
                 </div>
               </div>

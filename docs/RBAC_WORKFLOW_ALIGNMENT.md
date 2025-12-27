@@ -153,3 +153,4 @@ Legacy roles (`INDIVIDUAL_INVESTOR`, `INSTITUTIONAL_INVESTOR`, `IMPACT_FUND`, `S
 **Last Updated**: Alignment complete with USER_WORKFLOWS.md
 **Status**: ✅ Ready for implementation
 
+

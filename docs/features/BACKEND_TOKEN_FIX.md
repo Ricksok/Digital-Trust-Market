@@ -37,3 +37,4 @@ Users are now automatically authenticated after registration and can proceed dir
 - [ ] Verify redirect to `/onboarding` works
 - [ ] Verify user can access protected routes
 
+

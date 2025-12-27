@@ -1,59 +1,65 @@
 /**
  * Learning Gate Middleware
- * Feature: Learning Exchange Engine
- * 
- * Gates access to features based on learning outcomes
+ * Ensures users have completed required courses before accessing certain features
  */
 
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { AuthRequest } from './auth.middleware';
-import { hasUnlockedFeature } from '../services/learning.service';
 import { createError } from './errorHandler';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 /**
- * Middleware to check if user has unlocked a required feature
- * Usage: learningGate('auction.bid.create')
+ * Learning gate middleware
+ * Checks if user has completed required courses before allowing access
  */
-export function learningGate(requiredFeature: string) {
+export const learningGate = (requiredCourses?: string[]) => {
   return async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user?.id) {
-        throw createError('Unauthorized', 401);
+      if (!req.user) {
+        return next(createError('Authentication required', 401));
       }
 
-      const unlocked = await hasUnlockedFeature(req.user.id, requiredFeature);
+      // Admin bypass
+      if (req.user.role === 'ADMIN') {
+        return next();
+      }
 
-      if (!unlocked) {
-        // Get course that unlocks this feature
-        const { PrismaClient } = require('@prisma/client');
-        const prisma = new PrismaClient();
-        
+      // If no required courses specified, allow access
+      if (!requiredCourses || requiredCourses.length === 0) {
+        return next();
+      }
+
+      // Check if user has completed all required courses
+      const enrollments = await prisma.enrollment.findMany({
+        where: {
+          userId: req.user.id,
+          courseId: { in: requiredCourses },
+          status: 'COMPLETED',
+        },
+        select: {
+          courseId: true,
+        },
+      });
+
+      const completedCourseIds = enrollments.map((e) => e.courseId);
+      const missingCourses = requiredCourses.filter(
+        (courseId) => !completedCourseIds.includes(courseId)
+      );
+
+      if (missingCourses.length > 0) {
+        // Get course titles for error message
         const courses = await prisma.course.findMany({
-          where: {
-            unlocks: { not: null },
-            status: 'PUBLISHED',
-            isActive: true,
-          },
+          where: { id: { in: missingCourses } },
+          select: { title: true },
         });
 
-        const unlockingCourse = courses.find((course: any) => {
-          if (!course.unlocks) return false;
-          const unlocks = JSON.parse(course.unlocks) as string[];
-          return unlocks.includes(requiredFeature);
-        });
-
-        await prisma.$disconnect();
-
-        throw createError(
-          `Feature requires learning. Please complete: ${unlockingCourse?.title || 'required course'}`,
-          403,
-          {
-            requiredFeature,
-            unlockingCourse: unlockingCourse ? {
-              id: unlockingCourse.id,
-              title: unlockingCourse.title,
-            } : null,
-          }
+        return next(
+          createError(
+            `You must complete the following courses: ${courses.map((c) => c.title).join(', ')}`,
+            403
+          )
         );
       }
 
@@ -62,68 +68,4 @@ export function learningGate(requiredFeature: string) {
       next(error);
     }
   };
-}
-
-/**
- * Middleware to check multiple features (OR logic - any one unlocks)
- */
-export function learningGateAny(requiredFeatures: string[]) {
-  return async (req: AuthRequest, res: Response, next: NextFunction) => {
-    try {
-      if (!req.user?.id) {
-        throw createError('Unauthorized', 401);
-      }
-
-      const checks = await Promise.all(
-        requiredFeatures.map((feature) => hasUnlockedFeature(req.user!.id, feature))
-      );
-
-      const unlocked = checks.some((unlocked) => unlocked);
-
-      if (!unlocked) {
-        throw createError(
-          'Feature requires learning. Please complete required courses.',
-          403,
-          { requiredFeatures }
-        );
-      }
-
-      next();
-    } catch (error) {
-      next(error);
-    }
-  };
-}
-
-/**
- * Middleware to check multiple features (AND logic - all must unlock)
- */
-export function learningGateAll(requiredFeatures: string[]) {
-  return async (req: AuthRequest, res: Response, next: NextFunction) => {
-    try {
-      if (!req.user?.id) {
-        throw createError('Unauthorized', 401);
-      }
-
-      const checks = await Promise.all(
-        requiredFeatures.map((feature) => hasUnlockedFeature(req.user!.id, feature))
-      );
-
-      const allUnlocked = checks.every((unlocked) => unlocked);
-
-      if (!allUnlocked) {
-        const missing = requiredFeatures.filter((_, i) => !checks[i]);
-        throw createError(
-          'Feature requires additional learning. Please complete required courses.',
-          403,
-          { missingFeatures: missing }
-        );
-      }
-
-      next();
-    } catch (error) {
-      next(error);
-    }
-  };
-}
-
+};

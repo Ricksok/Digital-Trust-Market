@@ -84,3 +84,4 @@ const investmentsItems: NavItem[] = [
 
 ✅ **Complete** - Navigation restructured and tested. All routes properly configured.
 
+

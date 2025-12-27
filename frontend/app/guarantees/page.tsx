@@ -79,15 +79,12 @@ export default function GuaranteesPage() {
             <p className="mt-2 text-gray-600">Browse and bid on guarantee requests</p>
           </div>
           {isAuthenticated && (
-            <button
-              onClick={() => {
-                // TODO: Create /guarantees/request page or implement modal
-                alert('Guarantee request feature coming soon!');
-              }}
-              className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
+            <Link
+              href="/guarantees/request"
+              className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 inline-block"
             >
               Request Guarantee
-            </button>
+            </Link>
           )}
         </div>
 
@@ -101,15 +98,12 @@ export default function GuaranteesPage() {
           <div className="bg-white shadow rounded-lg p-8 text-center">
             <p className="text-gray-500">No guarantee requests found.</p>
             {isAuthenticated && (
-              <button
-                onClick={() => {
-                  // TODO: Create /guarantees/request page or implement modal
-                  alert('Guarantee request feature coming soon!');
-                }}
+              <Link
+                href="/guarantees/request"
                 className="mt-4 inline-block bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
               >
                 Create Guarantee Request
-              </button>
+              </Link>
             )}
           </div>
         ) : (

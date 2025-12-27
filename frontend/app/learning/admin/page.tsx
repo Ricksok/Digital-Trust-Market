@@ -21,7 +21,6 @@ export default function AdminCourseManagementPage() {
   const unpublishCourse = useUnpublishCourse();
   const deleteCourse = useDeleteCourse();
 
-  const [isCreating, setIsCreating] = useState(false);
   const [editingCourse, setEditingCourse] = useState<string | null>(null);
 
   // Redirect if not authenticated or not admin
@@ -75,30 +74,12 @@ export default function AdminCourseManagementPage() {
             <Link href="/learning">
               <Button variant="outline">Back to Learning</Button>
             </Link>
-            <Button variant="primary" onClick={() => setIsCreating(true)}>
-              Create Course
-            </Button>
+            <Link href="/learning/admin/create">
+              <Button variant="primary">Create Course</Button>
+            </Link>
           </div>
         </div>
 
-        {/* Create Course Form */}
-        {isCreating && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Create New Course</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">
-                Course creation form will be implemented here. For now, use the API directly or create courses via the backend.
-              </p>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setIsCreating(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Published Courses */}
         {publishedCourses.length > 0 && (
@@ -218,9 +199,9 @@ export default function AdminCourseManagementPage() {
           <Card>
             <CardContent className="p-6 text-center">
               <p className="text-gray-500 mb-4">No courses found.</p>
-              <Button variant="primary" onClick={() => setIsCreating(true)}>
-                Create Your First Course
-              </Button>
+              <Link href="/learning/admin/create">
+                <Button variant="primary">Create Your First Course</Button>
+              </Link>
             </CardContent>
           </Card>
         )}
@@ -228,4 +209,5 @@ export default function AdminCourseManagementPage() {
     </div>
   );
 }
+
 

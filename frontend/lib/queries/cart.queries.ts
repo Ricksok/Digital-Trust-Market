@@ -14,7 +14,9 @@ export const useCart = () => {
     queryKey: ['cart'],
     queryFn: async () => {
       const response = await cartApi.getCart();
-      const cart: Cart = response.data;
+      // Backend returns { success: true, data: cart }
+      // API client returns response.data which is { success: true, data: cart }
+      const cart: Cart = (response as any).data || response;
       setCart(cart);
       return cart;
     },
@@ -36,7 +38,12 @@ export const useAddToCart = () => {
   const { showNotification } = useUIStore();
 
   return useMutation({
-    mutationFn: (input: AddToCartInput) => cartApi.addToCart(input),
+    mutationFn: async (input: AddToCartInput) => {
+      const response = await cartApi.addToCart(input);
+      // Backend returns { success: true, data: cart }
+      // API client returns response.data which is { success: true, data: cart }
+      return (response as any).data || response;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
       showNotification({
@@ -45,9 +52,14 @@ export const useAddToCart = () => {
       });
     },
     onError: (error: any) => {
+      console.error('Add to cart error:', error);
+      const errorMessage = error.response?.data?.error?.message || 
+                          error.response?.data?.message ||
+                          error.message || 
+                          'Failed to add item to cart';
       showNotification({
         type: 'error',
-        message: error.response?.data?.error?.message || 'Failed to add item to cart',
+        message: errorMessage,
       });
     },
   });

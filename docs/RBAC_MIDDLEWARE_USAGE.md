@@ -389,3 +389,4 @@ const audits = await prisma.permissionAudit.findMany({
 
 **Note**: The `authorize()` middleware is backward compatible and will work with both RBAC and legacy role systems during migration.
 
+

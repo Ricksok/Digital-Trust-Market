@@ -4,13 +4,15 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Auction } from '@/lib/api/auctions';
-import { useAuctions } from '@/lib/queries';
+import { useAuctions, useCancelAuction, useCloseAuction } from '@/lib/queries';
 import { useAuthStore } from '@/lib/stores/auth.store';
 
 export default function AuctionsPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
   const { data, isLoading, error } = useAuctions();
+  const cancelAuction = useCancelAuction();
+  const closeAuction = useCloseAuction();
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -110,15 +112,12 @@ export default function AuctionsPage() {
           <div className="bg-white shadow rounded-lg p-8 text-center">
             <p className="text-gray-500">No auctions found.</p>
             {user?.role === 'ADMIN' || user?.userType === 'FUNDRAISER' ? (
-              <button
-                onClick={() => {
-                  // TODO: Create /auctions/create page or implement modal
-                  alert('Create auction feature coming soon!');
-                }}
+              <Link
+                href="/auctions/create"
                 className="mt-4 inline-block bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
               >
                 Create Auction
-              </button>
+              </Link>
             ) : null}
           </div>
         ) : (
@@ -173,20 +172,50 @@ export default function AuctionsPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <Link
                     href={`/auctions/${auction.id}`}
-                    className="flex-1 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 text-center"
+                    className="flex-1 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 text-center min-w-[120px]"
                   >
                     View Details
                   </Link>
                   {auction.status === 'ACTIVE' && (
                     <Link
                       href={`/auctions/${auction.id}`}
-                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-center"
+                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-center min-w-[120px]"
                     >
                       Place Bid
                     </Link>
+                  )}
+                  {(user?.role === 'ADMIN' || user?.userType === 'FUNDRAISER') && (
+                    <>
+                      {auction.status === 'ACTIVE' && (
+                        <button
+                          onClick={() => {
+                            if (confirm('Are you sure you want to close this auction?')) {
+                              closeAuction.mutate(auction.id);
+                            }
+                          }}
+                          disabled={closeAuction.isPending}
+                          className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 text-sm"
+                        >
+                          Close
+                        </button>
+                      )}
+                      {(auction.status === 'PENDING' || auction.status === 'ACTIVE') && (
+                        <button
+                          onClick={() => {
+                            if (confirm('Are you sure you want to cancel this auction?')) {
+                              cancelAuction.mutate(auction.id);
+                            }
+                          }}
+                          disabled={cancelAuction.isPending}
+                          className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 text-sm"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

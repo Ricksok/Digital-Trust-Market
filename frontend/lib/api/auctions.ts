@@ -72,7 +72,23 @@ export const auctionsApi = {
     const response = await apiClient.post(`/api/auctions/bids/${bidId}/withdraw`);
     return response.data;
   },
+
+  update: async (id: string, data: Partial<Auction>) => {
+    const response = await apiClient.put(`/api/auctions/${id}`, data);
+    return response.data;
+  },
+
+  cancel: async (id: string) => {
+    const response = await apiClient.post(`/api/auctions/${id}/cancel`);
+    return response.data;
+  },
+
+  extend: async (id: string, newEndTime: string) => {
+    const response = await apiClient.post(`/api/auctions/${id}/extend`, { newEndTime });
+    return response.data;
+  },
 };
+
 
 
 

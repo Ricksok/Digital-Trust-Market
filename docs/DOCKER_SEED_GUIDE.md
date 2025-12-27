@@ -397,3 +397,4 @@ After successful seeding:
 docker-compose logs backend | tail -100
 ```
 
+

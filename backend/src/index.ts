@@ -19,6 +19,7 @@ import complianceRoutes from './routes/compliance.routes';
 import demoRoutes from './routes/demo.routes';
 import trustRoutes from './routes/trust.routes';
 import auctionRoutes from './routes/auction.routes';
+import bidRoutes from './routes/bid.routes';
 import guaranteeRoutes from './routes/guarantee.routes';
 import tokenRoutes from './routes/token.routes';
 import governanceRoutes from './routes/governance.routes';
@@ -87,6 +88,7 @@ app.use('/api/compliance', complianceRoutes);
 app.use('/api/demo', demoRoutes);
 app.use('/api/trust', trustRoutes);
 app.use('/api/auctions', auctionRoutes);
+app.use('/api/bids', bidRoutes);
 app.use('/api/guarantees', guaranteeRoutes);
 app.use('/api/tokens', tokenRoutes);
 app.use('/api/governance', governanceRoutes);
@@ -100,13 +102,20 @@ app.use('/api/vendor-central', vendorCentralRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/checkout', checkoutRoutes);
 
-// Error handling
-app.use(errorHandler);
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
+// 404 handler - must be before error handler
+app.use((req, res, next) => {
+  res.status(404).json({ 
+    success: false,
+    error: { 
+      message: 'Route not found',
+      path: req.path,
+      method: req.method
+    } 
+  });
 });
+
+// Error handling - must be last
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);

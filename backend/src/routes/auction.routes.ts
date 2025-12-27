@@ -26,7 +26,7 @@ router.post(
   '/:id/bids',
   authenticate,
   requirePermission('auctions.bid'),
-  learningGate('auction.bid.create'), // Learning gate for auction bidding
+  learningGate([]), // Learning gate for auction bidding (no specific courses required)
   auctionController.placeBid
 );
 
@@ -35,6 +35,15 @@ router.post('/:id/close', authenticate, requirePermission('auctions.close'), auc
 
 // Withdraw bid - requires ownership of bid
 router.post('/bids/:bidId/withdraw', authenticate, requirePermission('auctions.bid'), auctionController.withdrawBid);
+
+// Update auction - requires auctions.create permission
+router.put('/:id', authenticate, requirePermission('auctions.create'), auctionController.updateAuction);
+
+// Cancel auction - requires auctions.create permission
+router.post('/:id/cancel', authenticate, requirePermission('auctions.create'), auctionController.cancelAuction);
+
+// Extend auction - requires auctions.create permission
+router.post('/:id/extend', authenticate, requirePermission('auctions.create'), auctionController.extendAuction);
 
 export default router;
 

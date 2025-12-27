@@ -126,15 +126,12 @@ export default function LoginPage() {
             </div>
 
             <div className="text-sm">
-              <button
-                onClick={() => {
-                  // TODO: Create /auth/forgot-password page
-                  alert('Password reset feature coming soon!');
-                }}
+              <Link
+                href="/auth/forgot-password"
                 className="font-medium text-primary-600 hover:text-primary-500"
               >
                 Forgot your password?
-              </button>
+              </Link>
             </div>
           </div>
 

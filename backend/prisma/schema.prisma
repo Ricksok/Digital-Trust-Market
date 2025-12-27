@@ -67,6 +67,10 @@ model User {
   credentials              Credential[] // Learning credentials earned
   learningOutcomes         LearningOutcome[] // Features unlocked through learning
   quizAttempts             QuizAttempt[] // Quiz attempts
+  assignmentSubmissions    AssignmentSubmission[] // Assignment submissions
+  forumPosts               ForumPost[] // Forum posts
+  gradebooks               Gradebook[] // Gradebook entries
+  activityCompletions      ActivityCompletion[] // Activity completions
   governanceProposals      GovernanceProposal[] // Proposals created
   governanceVotes          GovernanceVote[] // Votes cast
   stakes                   Stake[] // Staking positions
@@ -1560,6 +1564,11 @@ model Course {
   unlocks        String? // JSON array of permissions/features unlocked
   credentialType String? // CERTIFICATE, BADGE, CERTIFICATION
 
+  // Pricing
+  price      Float?  @default(0) // Price in KES, null or 0 = free
+  isPremium  Boolean @default(false) // Whether course requires payment
+  currency   String  @default("KES") // Currency code
+
   // Status
   status     String  @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
   isRequired Boolean @default(false) // Required for certain roles/features
@@ -1579,6 +1588,11 @@ model Course {
   credentials      Credential[]
   quizzes          Quiz[]
   learningOutcomes LearningOutcome[]
+  sections         CourseSection[]
+  assignments      Assignment[]
+  forums           Forum[]
+  gradebooks       Gradebook[]
+  activityCompletions ActivityCompletion[]
 
   @@index([category])
   @@index([status])
@@ -1609,10 +1623,14 @@ model Enrollment {
   updatedAt DateTime @updatedAt
 
   // Relations
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course       Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  credentials  Credential[]
-  quizAttempts QuizAttempt[]
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course              Course                @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  credentials         Credential[]
+  quizAttempts        QuizAttempt[]
+  assignmentSubmissions AssignmentSubmission[]
+  forumPosts          ForumPost[]
+  gradebooks          Gradebook[]
+  activityCompletions ActivityCompletion[]
 
   @@unique([userId, courseId])
   @@index([userId])
@@ -1746,3 +1764,282 @@ model LearningOutcome {
 }
 
 // Fix QuizAttempt enrollment relation
+
+// ============================================
+// Learning Management System (LMS) Models
+// Inspired by Moodle
+// ============================================
+
+// Course Sections/Modules - Organize course content
+model CourseSection {
+  id          String @id @default(uuid())
+  courseId    String
+  title       String
+  description String? @db.Text
+  order       Int     @default(0) // Display order
+  isVisible   Boolean @default(true)
+  
+  // Content organization
+  content     String? // JSON array of activity IDs and resources
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  course            Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  assignments       Assignment[]
+  forums            Forum[]
+  activityCompletions ActivityCompletion[]
+  
+  @@index([courseId])
+  @@index([order])
+}
+
+// Assignments - Different from quizzes, for file uploads, essays, etc.
+model Assignment {
+  id          String @id @default(uuid())
+  courseId    String
+  sectionId   String? // Optional: which section this belongs to
+  title       String
+  description String? @db.Text
+  
+  // Assignment settings
+  assignmentType String @default("FILE_UPLOAD") // FILE_UPLOAD, ESSAY, ONLINE_TEXT, OFFLINE
+  maxFileSize    Int? // Max file size in MB
+  allowedFileTypes String? // JSON array of allowed extensions
+  maxFiles       Int    @default(1)
+  
+  // Grading
+  maxScore       Float  @default(100)
+  passingScore   Float? // Optional passing threshold
+  gradingType    String @default("MANUAL") // MANUAL, AUTO, RUBRIC
+  
+  // Dates
+  dueDate        DateTime?
+  allowLateSubmissions Boolean @default(false)
+  latePenalty    Float? // Percentage penalty for late submissions
+  
+  // Settings
+  isActive       Boolean @default(true)
+  requireSubmission Boolean @default(true)
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  course         Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  section        CourseSection?      @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  submissions    AssignmentSubmission[]
+  // Note: ActivityCompletion uses polymorphic pattern (activityType + activityId)
+  // so we can't have a direct Prisma relation here
+  
+  @@index([courseId])
+  @@index([sectionId])
+  @@index([dueDate])
+}
+
+// Assignment Submissions
+model AssignmentSubmission {
+  id            String @id @default(uuid())
+  assignmentId String
+  userId        String
+  enrollmentId  String?
+  
+  // Submission content
+  submissionType String // FILE_UPLOAD, ONLINE_TEXT, OFFLINE
+  fileUrls       String? // JSON array of file URLs
+  onlineText     String? @db.Text
+  notes          String? @db.Text
+  
+  // Status
+  status        String @default("DRAFT") // DRAFT, SUBMITTED, GRADED, RETURNED, LATE
+  submittedAt   DateTime?
+  
+  // Grading
+  score         Float?
+  grade         String? // Letter grade if applicable
+  feedback      String? @db.Text
+  gradedAt      DateTime?
+  gradedBy      String? // Instructor/admin who graded
+  
+  // Late submission tracking
+  isLate        Boolean @default(false)
+  lateDays      Int? // Days late
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  assignment    Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollment    Enrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  
+  @@unique([assignmentId, userId])
+  @@index([assignmentId])
+  @@index([userId])
+  @@index([enrollmentId])
+  @@index([status])
+}
+
+// Forums/Discussions - Course discussion forums
+model Forum {
+  id          String @id @default(uuid())
+  courseId    String
+  sectionId   String? // Optional: which section this belongs to
+  title       String
+  description String? @db.Text
+  
+  // Forum settings
+  forumType   String @default("STANDARD") // STANDARD, Q_AND_A, SINGLE_DISCUSSION
+  allowAnonymous Boolean @default(false)
+  requireInitialPost Boolean @default(false) // Must post before seeing replies
+  
+  // Moderation
+  isModerated Boolean @default(false)
+  isLocked    Boolean @default(false)
+  
+  // Tracking
+  postCount   Int     @default(0)
+  lastPostAt  DateTime?
+  
+  isActive    Boolean @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  course      Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  section     CourseSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  posts       ForumPost[]
+  // Note: ActivityCompletion uses polymorphic pattern (activityType + activityId)
+  // so we can't have a direct Prisma relation here
+  
+  @@index([courseId])
+  @@index([sectionId])
+  @@index([lastPostAt])
+}
+
+// Forum Posts
+model ForumPost {
+  id          String @id @default(uuid())
+  forumId     String
+  userId      String
+  enrollmentId String?
+  
+  // Post content
+  subject     String?
+  message     String  @db.Text
+  
+  // Threading
+  parentPostId String? // For replies
+  isPinned    Boolean @default(false)
+  
+  // Moderation
+  isDeleted   Boolean @default(false)
+  deletedAt   DateTime?
+  deletedBy   String?
+  
+  // Engagement
+  viewCount   Int     @default(0)
+  replyCount  Int     @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  forum       Forum       @relation(fields: [forumId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollment  Enrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  parentPost  ForumPost?  @relation("ForumPostReplies", fields: [parentPostId], references: [id], onDelete: Cascade)
+  replies     ForumPost[] @relation("ForumPostReplies")
+  
+  @@index([forumId])
+  @@index([userId])
+  @@index([enrollmentId])
+  @@index([parentPostId])
+  @@index([createdAt])
+}
+
+// Gradebook - Centralized grade tracking
+model Gradebook {
+  id            String @id @default(uuid())
+  enrollmentId  String
+  userId        String
+  courseId      String
+  
+  // Activity reference (polymorphic)
+  activityType  String // QUIZ, ASSIGNMENT, FORUM, MANUAL
+  activityId    String // ID of quiz, assignment, etc.
+  activityTitle String
+  
+  // Grading
+  score         Float? // Raw score
+  maxScore      Float  @default(100)
+  percentage    Float? // Calculated percentage
+  grade         String? // Letter grade
+  
+  // Weighting
+  weight        Float  @default(1.0) // Weight in final grade calculation
+  
+  // Status
+  isGraded      Boolean @default(false)
+  gradedAt      DateTime?
+  gradedBy      String?
+  
+  // Feedback
+  feedback      String? @db.Text
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  enrollment    Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course        Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  @@unique([enrollmentId, activityType, activityId])
+  @@index([enrollmentId])
+  @@index([userId])
+  @@index([courseId])
+  @@index([activityType, activityId])
+}
+
+// Activity Completion - Track completion of individual activities
+model ActivityCompletion {
+  id            String @id @default(uuid())
+  enrollmentId  String
+  userId        String
+  courseId      String
+  sectionId     String?
+  
+  // Activity reference (polymorphic)
+  activityType  String // QUIZ, ASSIGNMENT, FORUM, RESOURCE, VIDEO, SECTION
+  activityId    String // ID of the activity
+  
+  // Completion tracking
+  status        String @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETED, PASSED, FAILED
+  completedAt   DateTime?
+  
+  // Progress
+  progress      Float  @default(0) // 0-100
+  
+  // Requirements
+  requiresCompletion Boolean @default(true)
+  requiresPassing    Boolean @default(false) // Must pass (for quizzes/assignments)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  enrollment    Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course        Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  section       CourseSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  
+  @@unique([enrollmentId, activityType, activityId])
+  @@index([enrollmentId])
+  @@index([userId])
+  @@index([courseId])
+  @@index([activityType, activityId])
+  @@index([status])
+}

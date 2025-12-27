@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { Project } from '@/lib/api/projects';
 import { useProject, useCreateInvestment } from '@/lib/queries';
 import { useAuthStore } from '@/lib/stores/auth.store';
+import SecuritiesExchangeModal, { SelectedSecuritiesOption } from '@/components/projects/SecuritiesExchangeModal';
+import Button from '@/components/ui/Button';
 
 interface ProjectDetail extends Project {
   fundraiser?: {
@@ -44,6 +46,8 @@ export default function ProjectDetailPage() {
   const [investAmount, setInvestAmount] = useState('');
   const [investError, setInvestError] = useState<string | null>(null);
   const [investSuccess, setInvestSuccess] = useState(false);
+  const [showSecuritiesModal, setShowSecuritiesModal] = useState(false);
+  const [selectedSecuritiesOptions, setSelectedSecuritiesOptions] = useState<SelectedSecuritiesOption[]>([]);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -91,10 +95,40 @@ export default function ProjectDetailPage() {
     return Math.min((current / target) * 100, 100);
   };
 
-  const handleInvest = (e: React.FormEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleInvestNowClick = () => {
+    if (!project || !isAuthenticated) {
+      router.push('/auth/login');
+      return;
+    }
+
+    if (project.status !== 'APPROVED' && project.status !== 'ACTIVE') {
+      setInvestError('This project is not accepting investments');
+      return;
+    }
+
+    // Show securities exchange modal
+    setShowSecuritiesModal(true);
+  };
+
+  const handleSecuritiesOptionSelect = (options: SelectedSecuritiesOption[]) => {
+    setSelectedSecuritiesOptions(options);
+    setShowSecuritiesModal(false);
     
+    // Calculate total amount from selected options
+    const totalAmount = options.reduce((sum, opt) => sum + (opt.amount || 0), 0);
+    if (totalAmount > 0) {
+      setInvestAmount(totalAmount.toString());
+    }
+    
+    // Focus on amount input if not filled
+    if (!investAmount) {
+      setTimeout(() => {
+        document.getElementById('amount')?.focus();
+      }, 100);
+    }
+  };
+
+  const handleInvestSubmit = () => {
     if (!project || !isAuthenticated) {
       router.push('/auth/login');
       return;
@@ -131,16 +165,31 @@ export default function ProjectDetailPage() {
       return;
     }
 
+    // Build notes from selected securities options
+    const securitiesNotes = selectedSecuritiesOptions.length > 0
+      ? selectedSecuritiesOptions.map(opt => {
+          if (opt.type === 'GUARANTEE') {
+            return opt.label;
+          }
+          return `${opt.label}: ${formatCurrency(opt.amount || 0)}`;
+        }).join('; ')
+      : '';
+    
+    const notes = securitiesNotes
+      ? `Investment in ${project.title} via ${securitiesNotes}`
+      : `Investment in ${project.title}`;
+
     createInvestment.mutate(
       {
         projectId: project.id,
         amount,
-        notes: `Investment in ${project.title}`,
+        notes,
       },
       {
         onSuccess: () => {
           setInvestSuccess(true);
           setInvestAmount('');
+          setSelectedSecuritiesOptions([]);
           // Redirect to investments page after 2 seconds
           setTimeout(() => {
             router.push('/investments');
@@ -155,6 +204,20 @@ export default function ProjectDetailPage() {
         },
       }
     );
+  };
+
+  const handleInvest = (e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Always show modal first to select securities option
+    if (selectedSecuritiesOptions.length === 0) {
+      handleInvestNowClick();
+      return;
+    }
+    
+    // If options are selected, proceed with investment
+    handleInvestSubmit();
   };
 
   if (isLoading) {
@@ -415,13 +478,81 @@ export default function ProjectDetailPage() {
                         {project.maxInvestment && ` • Maximum: ${formatCurrency(project.maxInvestment)}`}
                       </p>
                     </div>
-                    <button
-                      type="submit"
-                      disabled={createInvestment.isPending}
-                      className="w-full px-6 py-3 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                    >
-                      {createInvestment.isPending ? 'Processing...' : 'Invest Now'}
-                    </button>
+                    
+                    {selectedSecuritiesOptions.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="p-3 bg-primary-50 border border-primary-200 rounded-md">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium text-primary-900">
+                              Selected Securities Options ({selectedSecuritiesOptions.length})
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedSecuritiesOptions([]);
+                                setShowSecuritiesModal(true);
+                              }}
+                              className="text-xs text-primary-600 hover:text-primary-800 underline"
+                            >
+                              Change
+                            </button>
+                          </div>
+                          <div className="space-y-2">
+                            {selectedSecuritiesOptions.map((option) => (
+                              <div key={option.id} className="flex items-center justify-between text-xs bg-white p-2 rounded">
+                                <span className="text-gray-700">
+                                  {option.icon} {option.label}
+                                </span>
+                                {option.type === 'GUARANTEE' ? (
+                                  <span className="text-xs text-gray-500 italic">No amount required</span>
+                                ) : (
+                                  <span className="font-semibold text-primary-900">
+                                    {formatCurrency(option.amount || 0)}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                            {selectedSecuritiesOptions.some(opt => opt.type !== 'GUARANTEE' && opt.amount) && (
+                              <div className="flex items-center justify-between pt-2 border-t border-primary-200 text-sm font-semibold">
+                                <span className="text-primary-900">Total:</span>
+                                <span className="text-primary-900">
+                                  {formatCurrency(selectedSecuritiesOptions.reduce((sum, opt) => {
+                                    if (opt.type === 'GUARANTEE') return sum;
+                                    return sum + (opt.amount || 0);
+                                  }, 0))}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex gap-3">
+                      {selectedSecuritiesOptions.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleInvestNowClick}
+                          className="flex-1"
+                        >
+                          Change Options
+                        </Button>
+                      )}
+                      <Button
+                        type="submit"
+                        variant="primary"
+                        disabled={createInvestment.isPending || !investAmount}
+                        className={selectedSecuritiesOptions.length > 0 ? 'flex-1' : 'w-full'}
+                      >
+                        {createInvestment.isPending ? 'Processing...' : 'Invest Now'}
+                      </Button>
+                    </div>
+                    {selectedSecuritiesOptions.length === 0 && (
+                      <p className="text-xs text-center text-gray-500 mt-2">
+                        Click "Invest Now" to choose your securities exchange options
+                      </p>
+                    )}
                   </form>
                 </div>
               )}
@@ -447,6 +578,17 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Securities Exchange Modal */}
+      <SecuritiesExchangeModal
+        isOpen={showSecuritiesModal}
+        onClose={() => setShowSecuritiesModal(false)}
+        onSelect={handleSecuritiesOptionSelect}
+        projectId={projectId}
+        totalAmount={investAmount ? parseFloat(investAmount) : undefined}
+        minInvestment={project?.minInvestment}
+        maxInvestment={project?.maxInvestment}
+      />
     </div>
   );
 }

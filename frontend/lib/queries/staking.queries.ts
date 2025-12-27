@@ -111,5 +111,75 @@ export const useUnstake = () => {
   });
 };
 
+/**
+ * Get staking pool by ID query hook
+ */
+export const useStakingPool = (id: string) => {
+  return useQuery({
+    queryKey: ['staking', 'pools', id],
+    queryFn: async () => {
+      const response = await stakingApi.getPoolById(id);
+      return response;
+    },
+    enabled: !!id,
+    staleTime: 60 * 1000, // 1 minute
+  });
+};
+
+/**
+ * Update staking pool mutation hook
+ */
+export const useUpdateStakingPool = () => {
+  const queryClient = useQueryClient();
+  const { showNotification } = useUIStore();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<StakingPool> }) => stakingApi.updatePool(id, data),
+    onSuccess: (response, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['staking', 'pools'] });
+      queryClient.invalidateQueries({ queryKey: ['staking', 'pools', variables.id] });
+      showNotification({
+        type: 'success',
+        message: 'Staking pool updated successfully',
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error?.message || 'Failed to update staking pool';
+      showNotification({
+        type: 'error',
+        message: errorMessage,
+      });
+    },
+  });
+};
+
+/**
+ * Deactivate staking pool mutation hook
+ */
+export const useDeactivateStakingPool = () => {
+  const queryClient = useQueryClient();
+  const { showNotification } = useUIStore();
+
+  return useMutation({
+    mutationFn: (id: string) => stakingApi.deactivatePool(id),
+    onSuccess: (response, id) => {
+      queryClient.invalidateQueries({ queryKey: ['staking', 'pools'] });
+      queryClient.invalidateQueries({ queryKey: ['staking', 'pools', id] });
+      showNotification({
+        type: 'success',
+        message: 'Staking pool deactivated successfully',
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error?.message || 'Failed to deactivate staking pool';
+      showNotification({
+        type: 'error',
+        message: errorMessage,
+      });
+    },
+  });
+};
+
+
 
 

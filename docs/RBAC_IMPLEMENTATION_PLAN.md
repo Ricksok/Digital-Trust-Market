@@ -236,3 +236,4 @@ const canManage = await hasAnyPermission(userId, ['projects.manage', 'projects.a
 
 **Status**: Design complete, ready for Phase 1 implementation
 
+

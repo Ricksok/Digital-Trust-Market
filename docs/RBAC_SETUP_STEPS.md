@@ -153,3 +153,4 @@ router.post('/projects', authenticate, requirePermission('projects.create'), con
 
 **Status**: Schema ready, waiting for database connection to run migration and seed.
 
+

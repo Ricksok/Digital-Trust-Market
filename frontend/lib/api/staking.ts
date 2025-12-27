@@ -82,5 +82,20 @@ export const stakingApi = {
     const response = await apiClient.get(url);
     return response.data;
   },
+
+  getPoolById: async (id: string) => {
+    const response = await apiClient.get(`/api/staking/pools/${id}`);
+    return response.data;
+  },
+
+  updatePool: async (id: string, data: Partial<StakingPool>) => {
+    const response = await apiClient.put(`/api/staking/pools/${id}`, data);
+    return response.data;
+  },
+
+  deactivatePool: async (id: string) => {
+    const response = await apiClient.delete(`/api/staking/pools/${id}`);
+    return response.data;
+  },
 };
 

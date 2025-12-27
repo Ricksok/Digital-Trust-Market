@@ -39,7 +39,12 @@ export const useCreateProject = () => {
   const { showNotification } = useUIStore();
 
   return useMutation({
-    mutationFn: (data: Partial<Project>) => projectsApi.create(data),
+    mutationFn: async (data: Partial<Project>) => {
+      const response = await projectsApi.create(data);
+      // Backend returns { success: true, data: project }
+      // API client returns response.data which is { success: true, data: project }
+      return (response as any).data || response;
+    },
     onMutate: async (newProject) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['projects'] });
@@ -67,24 +72,28 @@ export const useCreateProject = () => {
 
       return { previousProjects };
     },
-    onError: (err, newProject, context) => {
+    onError: (err: any, newProject, context) => {
       // Rollback on error
       if (context?.previousProjects) {
         queryClient.setQueryData(['projects'], context.previousProjects);
       }
+      console.error('Create project error:', err);
+      const errorMessage = err.response?.data?.error?.message || 
+                          err.response?.data?.message ||
+                          err.message || 
+                          'Failed to create project';
       showNotification({
         type: 'error',
-        message: 'Failed to create project',
+        message: errorMessage,
       });
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Invalidate queries to refetch with new project
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
       showNotification({
         type: 'success',
         message: 'Project created successfully',
       });
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 };
@@ -144,6 +153,7 @@ export const useSubmitProjectForApproval = () => {
     },
   });
 };
+
 
 
 

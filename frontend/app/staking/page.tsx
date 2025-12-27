@@ -154,15 +154,12 @@ export default function StakingPage() {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => {
-                        // TODO: Create /staking/pools/[id] page or implement staking modal
-                        alert(`Staking in "${pool.name}" coming soon!`);
-                      }}
+                    <Link
+                      href={`/staking/pools/${pool.id}`}
                       className="block w-full bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 text-center"
                     >
                       Stake Now
-                    </button>
+                    </Link>
                   </div>
                 ))}
               </div>

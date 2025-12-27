@@ -66,3 +66,4 @@ export function isValidTrustBand(band: string): boolean {
   return validBands.includes(band.toUpperCase());
 }
 
+

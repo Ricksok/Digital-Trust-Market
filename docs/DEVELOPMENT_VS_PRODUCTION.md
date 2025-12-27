@@ -151,3 +151,4 @@ docker-compose logs -f frontend
 
 **Note:** The TypeScript error has been fixed. You can now rebuild and the build should succeed.
 
+

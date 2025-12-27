@@ -55,3 +55,4 @@ docker-compose exec postgres psql -U postgres -d digital_trust_marketplace
 
 
 
+

@@ -72,6 +72,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const auctionsItems: NavItem[] = [
     { href: '/auctions', label: 'Auctions' },
+    { href: '/bids', label: 'My Bids' },
     { href: '/staking', label: 'Staking' },
     { href: '/rewards', label: 'Rewards' },
   ];
@@ -90,6 +91,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const topLevelNavItems = [
     { href: '/', label: 'Home' },
+    { href: '/learning', label: 'Learning' },
     { href: '/governance', label: 'Governance' },
   ];
 

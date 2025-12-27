@@ -28,6 +28,8 @@ export {
 export {
   useCourses,
   useCourse,
+  useCourseSections,
+  useGradebook,
   useLearningProfile,
   useEnrollInCourse,
   useUpdateProgress,
@@ -61,7 +63,17 @@ export {
   usePlaceBid,
   useWithdrawBid,
   useCloseAuction,
+  useUpdateAuction,
+  useCancelAuction,
+  useExtendAuction,
 } from './auctions.queries';
+
+// Bid queries
+export {
+  useUserBids,
+  useBid,
+  useUpdateBid,
+} from './bids.queries';
 
 // Guarantee queries
 export {
@@ -84,8 +96,11 @@ export {
 // Staking queries
 export {
   useStakingPools,
+  useStakingPool,
   useUserStakes,
   useCreateStakingPool,
+  useUpdateStakingPool,
+  useDeactivateStakingPool,
   useStake,
   useUnstake,
 } from './staking.queries';

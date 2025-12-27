@@ -20,8 +20,10 @@ export default function ProductDetailPage() {
   const addToCart = useAddToCart();
 
   const [selectedImage, setSelectedImage] = useState(0);
+  const [cartError, setCartError] = useState<string | null>(null);
 
-  const product = data?.data;
+  // Handle product data structure - could be data.data or just data
+  const product = data?.data || data;
 
   useEffect(() => {
     if (!productId) return;
@@ -30,6 +32,15 @@ export default function ProductDetailPage() {
       return;
     }
   }, [productId, router]);
+
+  // Debug: Log product data
+  useEffect(() => {
+    if (product) {
+      console.log('Product data:', product);
+      console.log('Product ID:', product.id);
+      console.log('Product status:', product.status);
+    }
+  }, [product]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-KE', {
@@ -166,7 +177,7 @@ export default function ProductDetailPage() {
             </div>
 
             {/* Add to Cart Section - Prominent CTA */}
-            {isAuthenticated && product.status === 'ACTIVE' ? (
+            {isAuthenticated && (product.status === 'ACTIVE' || product.status === 'APPROVED') ? (
               <Card className="border-2 border-primary-200 bg-primary-50">
                 <CardContent className="p-6 space-y-4">
                   <div className="text-center">
@@ -190,17 +201,50 @@ export default function ProductDetailPage() {
                     />
                   </div>
 
+                  {/* Error Message */}
+                  {cartError && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+                      {cartError}
+                    </div>
+                  )}
+
                   {/* Add to Cart Button - Large and Prominent */}
                   <Button
                     onClick={() => {
+                      if (!product?.id) {
+                        setCartError('Product ID is missing');
+                        return;
+                      }
+                      setCartError(null);
                       const quantityInput = document.getElementById('quantity') as HTMLInputElement;
                       const quantity = quantityInput ? parseInt(quantityInput.value) || 1 : 1;
-                      addToCart.mutate({ projectId: product.id, quantity });
+                      
+                      if (quantity < 1) {
+                        setCartError('Quantity must be at least 1');
+                        return;
+                      }
+
+                      addToCart.mutate(
+                        { projectId: product.id, quantity },
+                        {
+                          onError: (error: any) => {
+                            const errorMessage = error.response?.data?.error?.message || 
+                                                error.response?.data?.message ||
+                                                error.message || 
+                                                'Failed to add item to cart';
+                            setCartError(errorMessage);
+                            console.error('Add to cart error:', error);
+                          },
+                          onSuccess: () => {
+                            setCartError(null);
+                          },
+                        }
+                      );
                     }}
                     variant="primary"
                     fullWidth
                     size="lg"
-                    disabled={addToCart.isPending}
+                    disabled={addToCart.isPending || !product?.id}
                     className="py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-shadow"
                   >
                     {addToCart.isPending ? (
@@ -224,14 +268,34 @@ export default function ProductDetailPage() {
                   {/* Buy Now Option */}
                   <Button
                     onClick={() => {
+                      if (!product?.id) {
+                        setCartError('Product ID is missing');
+                        return;
+                      }
+                      setCartError(null);
                       const quantityInput = document.getElementById('quantity') as HTMLInputElement;
                       const quantity = quantityInput ? parseInt(quantityInput.value) || 1 : 1;
+                      
+                      if (quantity < 1) {
+                        setCartError('Quantity must be at least 1');
+                        return;
+                      }
+
                       addToCart.mutate(
                         { projectId: product.id, quantity },
                         {
                           onSuccess: () => {
-                            // Redirect to cart after adding
-                            router.push('/cart');
+                            setCartError(null);
+                            // Redirect to checkout after adding
+                            router.push('/checkout');
+                          },
+                          onError: (error: any) => {
+                            const errorMessage = error.response?.data?.error?.message || 
+                                                error.response?.data?.message ||
+                                                error.message || 
+                                                'Failed to add item to cart';
+                            setCartError(errorMessage);
+                            console.error('Buy now error:', error);
                           },
                         }
                       );
@@ -239,7 +303,7 @@ export default function ProductDetailPage() {
                     variant="outline"
                     fullWidth
                     size="lg"
-                    disabled={addToCart.isPending}
+                    disabled={addToCart.isPending || !product?.id}
                     className="py-3 text-base font-medium"
                   >
                     Buy Now

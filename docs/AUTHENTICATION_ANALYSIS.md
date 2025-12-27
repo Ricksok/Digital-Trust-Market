@@ -421,3 +421,4 @@ POST   /api/auth/web3/verify   - Verify Web3 wallet
 
 **Last Updated:** After implementing automatic token refresh and improved logout
 
+

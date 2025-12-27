@@ -615,3 +615,4 @@ model MembershipLinkage {
 - Trust band initialization should be async (queue job)
 - Transaction caps can be updated as trust improves
 
+

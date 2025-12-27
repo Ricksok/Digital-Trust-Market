@@ -68,6 +68,50 @@ export const getUserStakes = async (req: AuthRequest, res: Response, next: NextF
   }
 };
 
+export const getStakingPoolById = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const pool = await stakingService.getStakingPoolById(req.params.id);
+    res.json({ success: true, data: pool });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateStakingPool = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    // Only admins can update staking pools
+    if (req.user!.role !== 'ADMIN') {
+      return res.status(403).json({
+        success: false,
+        error: { message: 'Insufficient permissions' },
+      });
+    }
+
+    const pool = await stakingService.updateStakingPool(req.params.id, req.body);
+    res.json({ success: true, data: pool, message: 'Staking pool updated successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deactivateStakingPool = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    // Only admins can deactivate staking pools
+    if (req.user!.role !== 'ADMIN') {
+      return res.status(403).json({
+        success: false,
+        error: { message: 'Insufficient permissions' },
+      });
+    }
+
+    const pool = await stakingService.deactivateStakingPool(req.params.id);
+    res.json({ success: true, data: pool, message: 'Staking pool deactivated successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 
 
 

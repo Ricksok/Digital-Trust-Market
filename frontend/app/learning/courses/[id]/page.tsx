@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useCourse, useEnrollInCourse, useUpdateProgress, useCompleteCourse } from '@/lib/queries';
+import { useCourse, useCourseSections, useGradebook, useEnrollInCourse, useUpdateProgress, useCompleteCourse } from '@/lib/queries';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import Card, { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -17,11 +17,16 @@ export default function CourseDetailPage() {
   const courseId = params?.id as string;
   
   const { data: course, isLoading } = useCourse(courseId);
+  const { data: sections, isLoading: sectionsLoading } = useCourseSections(courseId);
   const enroll = useEnrollInCourse();
   const updateProgress = useUpdateProgress();
   const completeCourse = useCompleteCourse();
   
   const [progress, setProgress] = useState(0);
+  
+  // Get enrollment from course data (only after course is loaded)
+  const enrollment = course ? (course as any)?.enrollment : null;
+  const { data: gradebook, isLoading: gradebookLoading } = useGradebook(enrollment?.id || '');
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -32,11 +37,10 @@ export default function CourseDetailPage() {
 
   // Update progress from enrollment
   useEffect(() => {
-    if (course && (course as any).enrollment) {
-      const enrollment = (course as any).enrollment;
+    if (enrollment) {
       setProgress(enrollment.progress || 0);
     }
-  }, [course]);
+  }, [enrollment]);
 
   if (!isAuthenticated) {
     return null;
@@ -65,7 +69,6 @@ export default function CourseDetailPage() {
     );
   }
 
-  const enrollment = (course as any).enrollment;
   const isEnrolled = course.isEnrolled || !!enrollment;
   const isCompleted = course.isCompleted || enrollment?.status === 'COMPLETED';
   const hasCredential = course.hasCredential || enrollment?.credentials?.length > 0;
@@ -135,6 +138,20 @@ export default function CourseDetailPage() {
             <span>{course.level}</span>
             <span>•</span>
             <Badge variant="outline" size="sm">{course.category}</Badge>
+            {course.isPremium && (
+              <>
+                <span>•</span>
+                <Badge variant="primary" size="sm">
+                  Premium - {course.currency || 'KES'} {course.price?.toLocaleString() || '0'}
+                </Badge>
+              </>
+            )}
+            {!course.isPremium && (
+              <>
+                <span>•</span>
+                <Badge variant="success" size="sm">Free</Badge>
+              </>
+            )}
           </div>
         </div>
 
@@ -255,20 +272,119 @@ export default function CourseDetailPage() {
           </CardContent>
         </Card>
 
+        {/* Course Sections */}
+        {isEnrolled && sections && sections.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Course Sections</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {sections.map((section: any, index: number) => (
+                  <div key={section.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="font-semibold text-gray-900">
+                        Section {index + 1}: {section.title}
+                      </h3>
+                      {section.completionStatus === 'COMPLETED' && (
+                        <Badge variant="success" size="sm">Completed</Badge>
+                      )}
+                    </div>
+                    {section.description && (
+                      <p className="text-sm text-gray-600 mb-3">{section.description}</p>
+                    )}
+                    {section.assignments && section.assignments.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-sm font-medium text-gray-700 mb-2">Assignments:</p>
+                        <ul className="space-y-1">
+                          {section.assignments.map((assignment: any) => (
+                            <li key={assignment.id} className="text-sm text-gray-600">
+                              • {assignment.title}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {section.forums && section.forums.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-sm font-medium text-gray-700 mb-2">Forums:</p>
+                        <ul className="space-y-1">
+                          {section.forums.map((forum: any) => (
+                            <li key={forum.id} className="text-sm text-gray-600">
+                              • {forum.title}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Gradebook */}
+        {isEnrolled && enrollment && gradebook && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Gradebook</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">Final Score:</span>
+                  <span className="text-lg font-semibold text-gray-900">
+                    {gradebook.finalScore?.toFixed(1) || '0'}%
+                  </span>
+                </div>
+                {gradebook.finalGrade && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Final Grade:</span>
+                    <Badge variant="primary" size="md">{gradebook.finalGrade}</Badge>
+                  </div>
+                )}
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">Status:</span>
+                  <Badge variant={gradebook.isPassed ? 'success' : 'warning'} size="md">
+                    {gradebook.isPassed ? 'Passed' : 'In Progress'}
+                  </Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Enrollment CTA */}
         {!isEnrolled && (
           <Card>
             <CardContent className="p-6 text-center">
-              <p className="text-lg font-semibold text-gray-900 mb-4">
-                Ready to start learning?
-              </p>
+              <div className="mb-4">
+                {course.isPremium ? (
+                  <div>
+                    <p className="text-lg font-semibold text-gray-900 mb-2">
+                      Premium Course
+                    </p>
+                    <p className="text-2xl font-bold text-primary-600 mb-2">
+                      {course.currency || 'KES'} {course.price?.toLocaleString() || '0'}
+                    </p>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Payment will be processed upon enrollment
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-lg font-semibold text-gray-900 mb-4">
+                    Ready to start learning?
+                  </p>
+                )}
+              </div>
               <Button
                 variant="primary"
                 size="lg"
                 onClick={handleEnroll}
                 disabled={enroll.isPending}
               >
-                {enroll.isPending ? 'Enrolling...' : 'Enroll in Course'}
+                {enroll.isPending ? 'Enrolling...' : course.isPremium ? 'Enroll & Pay' : 'Enroll in Course'}
               </Button>
             </CardContent>
           </Card>

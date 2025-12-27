@@ -1,19 +1,26 @@
 /**
  * Vendor Central Routes
- * Feature: Vendor Central Dashboard
  */
 
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware';
-import * as vendorCentralController from '../controllers/vendor-central.controller';
 
 const router = Router();
 
-/**
- * GET /api/vendor-central/dashboard
- * Get vendor dashboard data
- */
-router.get('/dashboard', authenticate, vendorCentralController.getDashboard);
+// All vendor central routes require authentication
+router.use(authenticate);
+
+// Placeholder routes - to be implemented
+router.get('/dashboard', (req, res) => {
+  res.json({ message: 'Vendor dashboard - to be implemented' });
+});
+
+router.get('/products', (req, res) => {
+  res.json({ message: 'Get vendor products - to be implemented' });
+});
+
+router.post('/products', (req, res) => {
+  res.json({ message: 'Create product - to be implemented' });
+});
 
 export default router;
-
