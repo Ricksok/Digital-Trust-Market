@@ -96,6 +96,12 @@ async function main() {
   };
 
   // Delete in reverse dependency order
+  await safeDelete('LearningOutcome', () => prisma.learningOutcome.deleteMany());
+  await safeDelete('QuizAttempt', () => prisma.quizAttempt.deleteMany());
+  await safeDelete('Quiz', () => prisma.quiz.deleteMany());
+  await safeDelete('Credential', () => prisma.credential.deleteMany());
+  await safeDelete('Enrollment', () => prisma.enrollment.deleteMany());
+  await safeDelete('Course', () => prisma.course.deleteMany());
   await safeDelete('GuaranteeTokenAllocation', () => prisma.guaranteeTokenAllocation.deleteMany());
   await safeDelete('RewardDistribution', () => prisma.rewardDistribution.deleteMany());
   await safeDelete('Stake', () => prisma.stake.deleteMany());
@@ -870,7 +876,303 @@ async function main() {
       });
     }
   }
-  console.log(`✅ Created ${projects.length} projects`);
+  console.log(`✅ Created ${projects.length} initial projects`);
+
+  // Create additional Securities Exchange projects
+  console.log('\n📈 Creating Securities Exchange projects...');
+  const securitiesProjectData = [
+    {
+      title: 'Green Energy Infrastructure Fund',
+      description: 'Large-scale renewable energy infrastructure project seeking equity investment. Developing wind and solar farms across Kenya to generate 50MW of clean energy. Accepts equity consideration (ordinary or preference shares).',
+      category: 'Renewable Energy',
+      targetAmount: 150000000,
+      minInvestment: 500000,
+      maxInvestment: 20000000,
+      status: ProjectStatus.ACTIVE,
+      dueDiligenceScore: 94.5,
+      images: ['https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=800'],
+      documents: ['https://example.com/documents/green-energy-fund.pdf'],
+      metadata: { 
+        productType: 'SECURITIES',
+        considerationType: 'EQUITY',
+        acceptsOrdinaryShares: true,
+        acceptsPreferenceShares: true,
+        location: 'Nationwide',
+        capacity: '50MW'
+      },
+    },
+    {
+      title: 'Commercial Real Estate Development - Westlands',
+      description: 'Premium commercial office complex in Nairobi Westlands. Seeking debt financing secured by property. Accepts bonds and loans as consideration, backed by guarantees.',
+      category: 'Real Estate',
+      targetAmount: 200000000,
+      minInvestment: 1000000,
+      maxInvestment: 30000000,
+      status: ProjectStatus.ACTIVE,
+      dueDiligenceScore: 91.0,
+      images: ['https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800'],
+      documents: ['https://example.com/documents/westlands-office.pdf'],
+      metadata: { 
+        productType: 'SECURITIES',
+        considerationType: 'DEBT',
+        acceptsBonds: true,
+        acceptsLoans: true,
+        requiresGuarantee: true,
+        location: 'Nairobi Westlands',
+        units: 150
+      },
+    },
+    {
+      title: 'Tech Startup Equity Round - Series A',
+      description: 'Fast-growing fintech startup raising Series A funding. Accepting equity investment through ordinary shares. High growth potential in digital payments sector.',
+      category: 'Technology',
+      targetAmount: 50000000,
+      minInvestment: 250000,
+      maxInvestment: 10000000,
+      status: ProjectStatus.ACTIVE,
+      dueDiligenceScore: 87.5,
+      images: ['https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800'],
+      documents: ['https://example.com/documents/fintech-series-a.pdf'],
+      metadata: { 
+        productType: 'SECURITIES',
+        considerationType: 'EQUITY',
+        acceptsOrdinaryShares: true,
+        acceptsPreferenceShares: false,
+        stage: 'Series A',
+        sector: 'FinTech'
+      },
+    },
+    {
+      title: 'Manufacturing Plant Expansion - Mombasa',
+      description: 'Expansion of existing manufacturing facility in Mombasa. Seeking debt financing through bonds, secured by plant assets and guaranteed by established guarantor.',
+      category: 'Manufacturing',
+      targetAmount: 120000000,
+      minInvestment: 750000,
+      maxInvestment: 25000000,
+      status: ProjectStatus.ACTIVE,
+      dueDiligenceScore: 89.0,
+      images: ['https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=800'],
+      documents: ['https://example.com/documents/manufacturing-expansion.pdf'],
+      metadata: { 
+        productType: 'SECURITIES',
+        considerationType: 'DEBT',
+        acceptsBonds: true,
+        acceptsLoans: false,
+        requiresGuarantee: true,
+        location: 'Mombasa',
+        capacity: '200% increase'
+      },
+    },
+    {
+      title: 'Healthcare Infrastructure - Regional Hospital',
+      description: 'Construction of a 200-bed regional hospital in Kisumu. Accepting both equity (preference shares) and debt (loans with guarantees) as consideration.',
+      category: 'Healthcare',
+      targetAmount: 180000000,
+      minInvestment: 1000000,
+      maxInvestment: 35000000,
+      status: ProjectStatus.ACTIVE,
+      dueDiligenceScore: 93.0,
+      images: ['https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=800'],
+      documents: ['https://example.com/documents/hospital-kisumu.pdf'],
+      metadata: { 
+        productType: 'SECURITIES',
+        considerationType: 'MIXED',
+        acceptsOrdinaryShares: false,
+        acceptsPreferenceShares: true,
+        acceptsBonds: false,
+        acceptsLoans: true,
+        requiresGuarantee: true,
+        location: 'Kisumu',
+        beds: 200
+      },
+    },
+    {
+      title: 'Agricultural Processing Facility',
+      description: 'Modern agricultural processing plant for coffee and tea. Seeking equity investment through ordinary shares. Strong export potential and established supply chains.',
+      category: 'Agriculture & Food',
+      targetAmount: 75000000,
+      minInvestment: 500000,
+      maxInvestment: 15000000,
+      status: ProjectStatus.ACTIVE,
+      dueDiligenceScore: 88.5,
+      images: ['https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800'],
+      documents: ['https://example.com/documents/agri-processing.pdf'],
+      metadata: { 
+        productType: 'SECURITIES',
+        considerationType: 'EQUITY',
+        acceptsOrdinaryShares: true,
+        acceptsPreferenceShares: false,
+        location: 'Nyeri',
+        capacity: '5000 tons/year'
+      },
+    },
+    {
+      title: 'Transportation Infrastructure - Highway Expansion',
+      description: 'Expansion of major highway connecting Nairobi to Mombasa. Debt financing through bonds, secured by toll revenue and government guarantees.',
+      category: 'Transportation',
+      targetAmount: 500000000,
+      minInvestment: 5000000,
+      maxInvestment: 100000000,
+      status: ProjectStatus.ACTIVE,
+      dueDiligenceScore: 95.0,
+      images: ['https://images.unsplash.com/photo-1449824913935-9a10b0e2fe38?w=800'],
+      documents: ['https://example.com/documents/highway-expansion.pdf'],
+      metadata: { 
+        productType: 'SECURITIES',
+        considerationType: 'DEBT',
+        acceptsBonds: true,
+        acceptsLoans: false,
+        requiresGuarantee: true,
+        location: 'Nairobi-Mombasa',
+        length: '485 km'
+      },
+    },
+    {
+      title: 'Education Technology Platform - Scale-Up',
+      description: 'EdTech platform expanding across East Africa. Series B funding round accepting preference shares. Proven business model with 100K+ active users.',
+      category: 'Education',
+      targetAmount: 40000000,
+      minInvestment: 200000,
+      maxInvestment: 8000000,
+      status: ProjectStatus.ACTIVE,
+      dueDiligenceScore: 86.0,
+      images: ['https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800'],
+      documents: ['https://example.com/documents/edtech-series-b.pdf'],
+      metadata: { 
+        productType: 'SECURITIES',
+        considerationType: 'EQUITY',
+        acceptsOrdinaryShares: false,
+        acceptsPreferenceShares: true,
+        stage: 'Series B',
+        users: 100000
+      },
+    },
+    {
+      title: 'Water Treatment Plant - Nakuru',
+      description: 'Modern water treatment facility serving Nakuru County. Accepting debt financing through loans, secured by water supply contracts and guarantees.',
+      category: 'Infrastructure',
+      targetAmount: 95000000,
+      minInvestment: 1000000,
+      maxInvestment: 20000000,
+      status: ProjectStatus.ACTIVE,
+      dueDiligenceScore: 90.5,
+      images: ['https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800'],
+      documents: ['https://example.com/documents/water-treatment-nakuru.pdf'],
+      metadata: { 
+        productType: 'SECURITIES',
+        considerationType: 'DEBT',
+        acceptsBonds: false,
+        acceptsLoans: true,
+        requiresGuarantee: true,
+        location: 'Nakuru',
+        capacity: '50M liters/day'
+      },
+    },
+    {
+      title: 'Retail Chain Expansion - Supermarket Network',
+      description: 'Expansion of retail supermarket chain across 10 new locations. Equity investment through ordinary shares. Strong track record and profitability.',
+      category: 'Retail',
+      targetAmount: 60000000,
+      minInvestment: 300000,
+      maxInvestment: 12000000,
+      status: ProjectStatus.ACTIVE,
+      dueDiligenceScore: 85.0,
+      images: ['https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800'],
+      documents: ['https://example.com/documents/retail-expansion.pdf'],
+      metadata: { 
+        productType: 'SECURITIES',
+        considerationType: 'EQUITY',
+        acceptsOrdinaryShares: true,
+        acceptsPreferenceShares: false,
+        locations: 10,
+        sector: 'Retail'
+      },
+    },
+  ];
+
+  const securitiesProjects: Project[] = [];
+  for (let i = 0; i < securitiesProjectData.length; i++) {
+    const data = securitiesProjectData[i];
+    const project = await prisma.project.create({
+      data: {
+        title: data.title,
+        description: data.description,
+        category: data.category,
+        fundraiserId: fundraisers[i % fundraisers.length].id,
+        targetAmount: data.targetAmount,
+        currentAmount: Math.floor(data.targetAmount * (0.1 + Math.random() * 0.4)), // 10-50% funded
+        minInvestment: data.minInvestment,
+        maxInvestment: data.maxInvestment,
+        status: data.status,
+        dueDiligenceScore: data.dueDiligenceScore,
+        complianceStatus: 'APPROVED',
+        images: JSON.stringify(data.images),
+        documents: JSON.stringify(data.documents),
+        metadata: JSON.stringify(data.metadata),
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000), // 120 days from now
+      },
+    });
+    securitiesProjects.push(project);
+
+    // Create due diligence records
+    await prisma.dueDiligence.create({
+      data: {
+        projectId: project.id,
+        score: project.dueDiligenceScore || 85,
+        riskLevel: project.dueDiligenceScore && Number(project.dueDiligenceScore) > 85 ? 'LOW' : 'MEDIUM',
+        checks: JSON.stringify({
+          financial: { status: 'PASSED', score: Math.floor(80 + Math.random() * 15) },
+          legal: { status: 'PASSED', score: Math.floor(85 + Math.random() * 10) },
+          background: { status: 'PASSED', score: Math.floor(80 + Math.random() * 15) },
+          technical: { status: 'PASSED', score: Math.floor(85 + Math.random() * 10) },
+        }),
+        reviewedBy: admin.id,
+        reviewedAt: new Date(),
+      },
+    });
+
+    // Create some sample investments for these projects
+    const numInvestments = Math.floor(2 + Math.random() * 4); // 2-5 investments per project
+    for (let j = 0; j < numInvestments && j < investors.length; j++) {
+      const investmentAmount = Math.floor(data.minInvestment * (1 + Math.random() * 5));
+      const investment = await prisma.investment.create({
+        data: {
+          investorId: investors[j % investors.length].id,
+          projectId: project.id,
+          amount: investmentAmount,
+          status: InvestmentStatus.APPROVED,
+          transactionHash: `0x${Math.random().toString(16).substring(2, 66)}`,
+          notes: `Investment in ${project.title}`,
+        },
+      });
+
+      // Create payment
+      await prisma.payment.create({
+        data: {
+          userId: investors[j % investors.length].id,
+          investmentId: investment.id,
+          amount: investmentAmount,
+          currency: 'KES',
+          status: PaymentStatus.COMPLETED,
+          paymentMethod: 'BANK_TRANSFER',
+          transactionId: `TXN${Date.now()}${j}`,
+          gatewayResponse: JSON.stringify({ provider: 'demo', status: 'success' }),
+        },
+      });
+    }
+
+    // Update project current amount based on investments
+    const projectInvestments = await prisma.investment.findMany({
+      where: { projectId: project.id },
+    });
+    const totalInvested = projectInvestments.reduce((sum: number, inv: any) => sum + inv.amount, 0);
+    await prisma.project.update({
+      where: { id: project.id },
+      data: { currentAmount: totalInvested },
+    });
+  }
+  console.log(`✅ Created ${securitiesProjects.length} Securities Exchange projects`);
 
   // Create dummy investments
   const investments: Investment[] = [];
@@ -1403,7 +1705,159 @@ async function main() {
       }
     }
   }
-  console.log(`✅ Created ${guaranteeRequests.length} guarantee requests with bids`);
+  console.log(`✅ Created ${guaranteeRequests.length} initial guarantee requests with bids`);
+
+  // Create additional comprehensive guarantee data
+  console.log('\n🛡️ Creating additional guarantee data...');
+  const additionalGuaranteeRequests: any[] = [];
+  
+  // Create more guarantee requests for securities exchange projects
+  const securitiesProjectsForGuarantees = securitiesProjects.slice(0, 8); // Use first 8 securities projects
+  
+  for (let i = 0; i < securitiesProjectsForGuarantees.length; i++) {
+    const project = securitiesProjectsForGuarantees[i];
+    const fundraiser = fundraisers[i % fundraisers.length];
+    const guaranteeType = guaranteeTypes[i % guaranteeTypes.length];
+    
+    // Vary coverage amounts
+    const coverageOptions = [40, 50, 60, 70, 80];
+    const requestedCoverage = coverageOptions[i % coverageOptions.length];
+    
+    // Vary statuses
+    const statuses = ['PENDING', 'AUCTION_ACTIVE', 'ALLOCATED', 'PENDING'];
+    const status = statuses[i % statuses.length];
+    
+    const request = await prisma.guaranteeRequest.create({
+      data: {
+        issuerId: fundraiser.id,
+        projectId: project.id,
+        guaranteeType,
+        requestedCoverage,
+        amount: project.targetAmount * (requestedCoverage / 100),
+        currency: 'KES',
+        status,
+        requestedAt: new Date(now.getTime() - (i * 3 * 24 * 60 * 60 * 1000)), // Stagger request times
+        expiresAt: new Date(now.getTime() + (30 + i * 5) * 24 * 60 * 60 * 1000), // Vary expiry
+        metadata: JSON.stringify({ 
+          generated: true, 
+          projectTitle: project.title,
+          considerationType: project.metadata ? (typeof project.metadata === 'string' ? JSON.parse(project.metadata) : project.metadata)?.considerationType : null
+        }),
+      },
+    });
+
+    additionalGuaranteeRequests.push(request);
+
+    // Create auction for active requests
+    if (status === 'AUCTION_ACTIVE') {
+      const guaranteeAuction = await prisma.auction.create({
+        data: {
+          auctionType: 'GUARANTEE',
+          guaranteeRequestId: request.id,
+          title: `Guarantee Auction: ${project.title}`,
+          description: `Reverse auction for guarantee allocation. Coverage: ${requestedCoverage}% of ${project.title}`,
+          currency: 'KES',
+          startTime: new Date(now.getTime() - (i * 2 * 24 * 60 * 60 * 1000)),
+          endTime: new Date(now.getTime() + (7 - i) * 24 * 60 * 60 * 1000), // Vary end times
+          status: 'ACTIVE',
+          minTrustScore: 60 + (i * 5), // Vary min trust scores
+          trustWeight: 1.2 + (i * 0.1),
+        },
+      });
+
+      await prisma.guaranteeRequest.update({
+        where: { id: request.id },
+        data: { auctionId: guaranteeAuction.id },
+      });
+
+      // Create multiple guarantee bids from different guarantors
+      const potentialGuarantors = investors.filter((inv) => inv.isVerified);
+      const numBids = Math.min(4, potentialGuarantors.length);
+
+      for (let j = 0; j < numBids; j++) {
+        const guarantor = potentialGuarantors[(i * numBids + j) % potentialGuarantors.length];
+        const guarantorScore = await prisma.guarantorScore.findUnique({
+          where: { entityId: guarantor.id },
+        });
+
+        const coveragePercent = requestedCoverage * (0.85 - j * 0.1); // Decreasing coverage offers
+        const feePercent = 1.5 + (j * 0.4); // Increasing fees
+        const layer = j === 0 ? 'FIRST_LOSS' : j === 1 ? 'MEZZANINE' : j === 2 ? 'SENIOR' : 'FIRST_LOSS';
+        const effectiveBid = feePercent * 1.2 * ((guarantorScore?.guaranteeTrustScore || 50) / 100);
+        
+        const bidStatuses = ['PENDING', 'PENDING', 'ACCEPTED', 'REJECTED'];
+        const bidStatus = bidStatuses[j % bidStatuses.length];
+
+        await prisma.guaranteeBid.create({
+          data: {
+            guaranteeRequestId: request.id,
+            guarantorId: guarantor.id,
+            coveragePercent,
+            feePercent,
+            layer,
+            status: bidStatus,
+            guarantorTrustScore: guarantorScore?.guaranteeTrustScore || 50,
+            effectiveBid,
+            submittedAt: new Date(now.getTime() - (j * 3 * 60 * 60 * 1000)), // Stagger bid times
+            notes: `Bid for ${guaranteeType} guarantee on ${project.title}`,
+            metadata: JSON.stringify({ 
+              layer,
+              projectId: project.id,
+              projectTitle: project.title
+            }),
+          },
+        });
+      }
+    }
+
+    // Create allocated guarantees for some requests
+    if (status === 'ALLOCATED' && i < 2) {
+      const guarantors = investors.filter((inv) => inv.isVerified).slice(0, 2);
+      
+      for (let j = 0; j < Math.min(2, guarantors.length); j++) {
+        const guarantor = guarantors[j];
+        const guarantorScore = await prisma.guarantorScore.findUnique({
+          where: { entityId: guarantor.id },
+        });
+
+        const allocatedCoverage = requestedCoverage * (0.5 - j * 0.2); // 50%, 30% coverage
+        const feePercent = 2.0 + (j * 0.3);
+        const layer = j === 0 ? 'FIRST_LOSS' : 'MEZZANINE';
+
+        await prisma.guaranteeAllocation.create({
+          data: {
+            guaranteeRequestId: request.id,
+            guarantorId: guarantor.id,
+            coveragePercent: allocatedCoverage,
+            feePercent,
+            layer,
+            amount: project.targetAmount * (allocatedCoverage / 100),
+            status: 'ACTIVE',
+            allocatedAt: new Date(now.getTime() - (j * 2 * 24 * 60 * 60 * 1000)),
+            expiresAt: new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000), // 1 year
+            guarantorTrustScore: guarantorScore?.guaranteeTrustScore || 50,
+            metadata: JSON.stringify({ 
+              projectId: project.id,
+              projectTitle: project.title,
+              guaranteeType
+            }),
+          },
+        });
+      }
+
+      // Update request with allocated coverage
+      const totalAllocated = 80; // 50% + 30%
+      await prisma.guaranteeRequest.update({
+        where: { id: request.id },
+        data: { 
+          allocatedCoverage: totalAllocated,
+          allocatedAt: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000),
+          allocatedLayers: JSON.stringify(['FIRST_LOSS', 'MEZZANINE'])
+        },
+      });
+    }
+  }
+  console.log(`✅ Created ${additionalGuaranteeRequests.length} additional guarantee requests`);
 
   // Create tokens
   console.log('\n🪙 Creating tokens...');
@@ -2000,6 +2454,789 @@ async function main() {
   }
   console.log(`✅ Created ${analyticsSnapshots.length} analytics snapshots`);
 
+  // ============================================
+  // Marketplace Products Enhancement
+  // ============================================
+  console.log('\n🛒 Enhancing marketplace products...');
+  
+  // Update existing projects with better marketplace data
+  const marketplaceCategories = [
+    'Agriculture & Food',
+    'Technology',
+    'Renewable Energy',
+    'Real Estate',
+    'Education',
+    'Healthcare',
+    'Manufacturing',
+    'Services',
+    'Retail',
+    'Transportation',
+  ];
+
+  // Update projects with better images and marketplace-ready data
+  // Only update investment projects (not goods/services)
+  const investmentCategories = ['Renewable Energy', 'Real Estate', 'Social Enterprise', 'Education'];
+  
+  for (let i = 0; i < projects.length; i++) {
+    const project = projects[i];
+    // Check if this is an investment project (not goods/services)
+    const isInvestmentProject = investmentCategories.includes(project.category);
+    
+    // Only update investment projects, skip goods/services
+    if (isInvestmentProject) {
+      const category = project.category; // Keep original category
+      const images = [
+        `https://images.unsplash.com/photo-${1500000000000 + i}?w=800&h=600&fit=crop`,
+        `https://images.unsplash.com/photo-${1500000000001 + i}?w=800&h=600&fit=crop`,
+      ];
+      
+      await prisma.project.update({
+        where: { id: project.id },
+        data: {
+          category,
+          images: JSON.stringify(images),
+          // Add some currentAmount for better marketplace display
+          currentAmount: project.status === ProjectStatus.ACTIVE 
+            ? project.targetAmount * (0.3 + Math.random() * 0.4) // 30-70% funded
+            : project.currentAmount,
+        },
+      });
+    }
+  }
+
+  // Create additional marketplace products (suppliers/vendors)
+  const suppliers = [...tradeSellers, ...tradeSellerCorporates].filter((s) => s.isVerified);
+  const marketplaceProducts: Project[] = [];
+  const productData = [
+    {
+      title: 'Organic Maize - Grade A (10 Tonnes)',
+      description: 'Premium organic maize, Grade A quality, harvested from certified farms. Perfect for milling and export. Available for immediate delivery.',
+      category: 'Agriculture & Food',
+      targetAmount: 500000,
+      minInvestment: 5000,
+      maxInvestment: 500000,
+      images: ['https://images.unsplash.com/photo-1625246333195-78d9c38ad449?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1574943320219-553eb213f72d?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Fresh Coffee Beans - Arabica (5 Tonnes)',
+      description: 'High-quality Arabica coffee beans from Mount Kenya region. Single-origin, specialty grade. Ready for export or local roasting.',
+      category: 'Agriculture & Food',
+      targetAmount: 800000,
+      minInvestment: 10000,
+      maxInvestment: 800000,
+      images: ['https://images.unsplash.com/photo-1559056199-641a0ce8b553?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1559056199-5ef0f9c1e5b0?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Solar Panel Installation Service',
+      description: 'Professional solar panel installation for homes and businesses. Includes consultation, installation, and maintenance. Serving Nairobi and surrounding areas.',
+      category: 'Services',
+      targetAmount: 1200000,
+      minInvestment: 20000,
+      maxInvestment: 1200000,
+      images: ['https://images.unsplash.com/photo-1509391366360-2e1b82e0ed33?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Handmade Leather Products Collection',
+      description: 'Premium handmade leather bags, wallets, and accessories. Ethically sourced materials, traditional craftsmanship. Limited edition collection.',
+      category: 'Retail',
+      targetAmount: 600000,
+      minInvestment: 10000,
+      maxInvestment: 600000,
+      images: ['https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Mobile App Development Service',
+      description: 'Full-stack mobile app development for iOS and Android. Includes UI/UX design, development, testing, and deployment. 3-month delivery timeline.',
+      category: 'Technology',
+      targetAmount: 1500000,
+      minInvestment: 50000,
+      maxInvestment: 1500000,
+      images: ['https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Fresh Vegetables - Mixed Box (Weekly Subscription)',
+      description: 'Weekly subscription box of fresh, locally-sourced vegetables. Includes 10+ varieties, organic options available. Free delivery within Nairobi.',
+      category: 'Agriculture & Food',
+      targetAmount: 300000,
+      minInvestment: 5000,
+      maxInvestment: 300000,
+      images: ['https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'E-commerce Website Development',
+      description: 'Complete e-commerce website with payment integration, inventory management, and admin dashboard. Responsive design, SEO optimized.',
+      category: 'Technology',
+      targetAmount: 900000,
+      minInvestment: 30000,
+      maxInvestment: 900000,
+      images: ['https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1551650975-87deedd944c3?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Custom Furniture - Office Set',
+      description: 'Handcrafted office furniture set including desk, chair, and storage. Made from sustainable wood. Customizable dimensions and finishes.',
+      category: 'Manufacturing',
+      targetAmount: 700000,
+      minInvestment: 25000,
+      maxInvestment: 700000,
+      images: ['https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1538688525198-9b88f6f53126?w=800&h=600&fit=crop'],
+    },
+  ];
+
+  for (let i = 0; i < productData.length && i < suppliers.length; i++) {
+    const data = productData[i];
+    const supplier = suppliers[i];
+    const currentAmount = data.targetAmount * (0.2 + Math.random() * 0.5); // 20-70% funded
+    
+    const product = await prisma.project.create({
+      data: {
+        title: data.title,
+        description: data.description,
+        category: data.category,
+        fundraiserId: supplier.id,
+        targetAmount: data.targetAmount,
+        currentAmount,
+        minInvestment: data.minInvestment,
+        maxInvestment: data.maxInvestment,
+        status: ProjectStatus.ACTIVE,
+        images: JSON.stringify(data.images),
+        documents: JSON.stringify([`https://example.com/documents/product-${i}.pdf`]),
+        metadata: JSON.stringify({
+          productType: 'MARKETPLACE',
+          isGoodsOrService: true,
+          deliveryTime: '7-14 days',
+          location: 'Nairobi, Kenya',
+          quality: 'Premium',
+        }),
+        startDate: new Date(now.getTime() - (i * 5 * 24 * 60 * 60 * 1000)),
+        endDate: new Date(now.getTime() + (30 - i * 5) * 24 * 60 * 60 * 1000),
+      },
+    });
+    marketplaceProducts.push(product);
+  }
+  console.log(`✅ Created ${marketplaceProducts.length} marketplace products`);
+
+  // ============================================
+  // Additional Commodities and Services
+  // ============================================
+  console.log('\n🛒 Creating additional commodities and services...');
+  
+  const additionalCommoditiesAndServices = [
+    // Commodities - Agriculture & Food
+    {
+      title: 'Premium Wheat Flour - Grade 1 (20 Tonnes)',
+      description: 'High-quality wheat flour suitable for baking and confectionery. Certified Grade 1, milled from premium wheat. Bulk pricing available.',
+      category: 'Agriculture & Food',
+      targetAmount: 1200000,
+      minInvestment: 10000,
+      maxInvestment: 1200000,
+      images: ['https://images.unsplash.com/photo-1628088062854-d1870b4553da?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Raw Honey - Pure Organic (500kg)',
+      description: 'Pure organic honey harvested from local beekeepers. Unprocessed, raw, and unfiltered. Rich in antioxidants and enzymes. Available in bulk.',
+      category: 'Agriculture & Food',
+      targetAmount: 450000,
+      minInvestment: 5000,
+      maxInvestment: 450000,
+      images: ['https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1558642452-9a2e7f084b8c?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Tea Leaves - Black Tea (2 Tonnes)',
+      description: 'Premium black tea leaves from Kenyan highlands. Full-bodied flavor, perfect for export or local processing. Grade AA quality.',
+      category: 'Agriculture & Food',
+      targetAmount: 600000,
+      minInvestment: 8000,
+      maxInvestment: 600000,
+      images: ['https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1559056199-641a0ce8b553?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Avocado Oil - Cold Pressed (1000 Liters)',
+      description: 'Premium cold-pressed avocado oil. Rich in healthy fats and vitamins. Perfect for cooking and cosmetic use. Organic certified.',
+      category: 'Agriculture & Food',
+      targetAmount: 1800000,
+      minInvestment: 15000,
+      maxInvestment: 1800000,
+      images: ['https://images.unsplash.com/photo-1606914469633-bd39206ea739?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1573246123716-6b1782bfc499?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Fresh Mangoes - Export Quality (5 Tonnes)',
+      description: 'Premium export-quality mangoes. Sweet, juicy, and perfectly ripened. Suitable for export markets. Grade 1 quality.',
+      category: 'Agriculture & Food',
+      targetAmount: 750000,
+      minInvestment: 10000,
+      maxInvestment: 750000,
+      images: ['https://images.unsplash.com/photo-1605027990121-4a0271d0c0b0?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1605027990121-4a0271d0c0b0?w=800&h=600&fit=crop'],
+    },
+    
+    // Commodities - Raw Materials
+    {
+      title: 'Copper Wire - Industrial Grade (10 Tonnes)',
+      description: 'High-quality copper wire for electrical and industrial applications. Various gauges available. ISO certified quality.',
+      category: 'Manufacturing',
+      targetAmount: 9500000,
+      minInvestment: 50000,
+      maxInvestment: 9500000,
+      images: ['https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1581091226033-d5c48150dbaa?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Cotton Fabric - Premium Quality (5000 Meters)',
+      description: 'Premium cotton fabric suitable for garment manufacturing. Various colors and patterns available. Wholesale pricing.',
+      category: 'Manufacturing',
+      targetAmount: 850000,
+      minInvestment: 20000,
+      maxInvestment: 850000,
+      images: ['https://images.unsplash.com/photo-1586790170083-2f9ceadc732d?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Steel Sheets - Construction Grade (50 Tonnes)',
+      description: 'High-grade steel sheets for construction and manufacturing. Various thicknesses available. Quality certified.',
+      category: 'Manufacturing',
+      targetAmount: 4500000,
+      minInvestment: 100000,
+      maxInvestment: 4500000,
+      images: ['https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1581091226033-d5c48150dbaa?w=800&h=600&fit=crop'],
+    },
+    
+    // Services - Professional
+    {
+      title: 'Accounting & Bookkeeping Services',
+      description: 'Professional accounting and bookkeeping services for SMEs. Monthly financial statements, tax preparation, and compliance support.',
+      category: 'Services',
+      targetAmount: 500000,
+      minInvestment: 10000,
+      maxInvestment: 500000,
+      images: ['https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Legal Consultation Services',
+      description: 'Expert legal consultation for business contracts, compliance, and dispute resolution. Experienced lawyers specializing in commercial law.',
+      category: 'Services',
+      targetAmount: 800000,
+      minInvestment: 15000,
+      maxInvestment: 800000,
+      images: ['https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Digital Marketing Services',
+      description: 'Comprehensive digital marketing services including SEO, social media management, content creation, and paid advertising campaigns.',
+      category: 'Services',
+      targetAmount: 650000,
+      minInvestment: 12000,
+      maxInvestment: 650000,
+      images: ['https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Graphic Design Services',
+      description: 'Professional graphic design services for branding, marketing materials, web design, and print media. Creative team with 10+ years experience.',
+      category: 'Services',
+      targetAmount: 400000,
+      minInvestment: 8000,
+      maxInvestment: 400000,
+      images: ['https://images.unsplash.com/photo-1561070791-2526d30994b5?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1558655146-364adaf1fcc9?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Logistics & Delivery Services',
+      description: 'Reliable logistics and delivery services across Kenya. Same-day delivery in Nairobi, next-day nationwide. Warehousing available.',
+      category: 'Services',
+      targetAmount: 1100000,
+      minInvestment: 25000,
+      maxInvestment: 1100000,
+      images: ['https://images.unsplash.com/photo-1601581874688-f75d0c870053?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1601581874688-f75d0c870053?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Cleaning Services - Commercial',
+      description: 'Professional commercial cleaning services for offices, retail spaces, and offices. Trained staff, eco-friendly products.',
+      category: 'Services',
+      targetAmount: 350000,
+      minInvestment: 7000,
+      maxInvestment: 350000,
+      images: ['https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1628177142898-93e36b4c6c45?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Catering Services - Events',
+      description: 'Professional catering services for corporate events, weddings, and conferences. Menu customization available. Serving 50-500 guests.',
+      category: 'Services',
+      targetAmount: 550000,
+      minInvestment: 10000,
+      maxInvestment: 550000,
+      images: ['https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Photography & Videography Services',
+      description: 'Professional photography and videography services for events, corporate, weddings, and product photography. Full editing included.',
+      category: 'Services',
+      targetAmount: 480000,
+      minInvestment: 9000,
+      maxInvestment: 480000,
+      images: ['https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=800&h=600&fit=crop'],
+    },
+    
+    // Services - Technology
+    {
+      title: 'Cloud Infrastructure Setup & Management',
+      description: 'Complete cloud infrastructure setup on AWS, Azure, or GCP. Includes migration, monitoring, and 24/7 support.',
+      category: 'Technology',
+      targetAmount: 2000000,
+      minInvestment: 50000,
+      maxInvestment: 2000000,
+      images: ['https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Cybersecurity Audit & Consulting',
+      description: 'Comprehensive cybersecurity audit and consulting services. Vulnerability assessment, penetration testing, and security training.',
+      category: 'Technology',
+      targetAmount: 1600000,
+      minInvestment: 40000,
+      maxInvestment: 1600000,
+      images: ['https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Data Analytics & Business Intelligence',
+      description: 'Data analytics and BI services. Dashboard creation, data visualization, and insights generation for data-driven decisions.',
+      category: 'Technology',
+      targetAmount: 1400000,
+      minInvestment: 35000,
+      maxInvestment: 1400000,
+      images: ['https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&h=600&fit=crop'],
+    },
+    
+    // Retail Products
+    {
+      title: 'Handmade Soap Collection - Natural',
+      description: 'Natural handmade soaps with essential oils. Various scents available. Organic ingredients, perfect for sensitive skin.',
+      category: 'Retail',
+      targetAmount: 280000,
+      minInvestment: 5000,
+      maxInvestment: 280000,
+      images: ['https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Artisan Jewelry Collection',
+      description: 'Handcrafted jewelry collection featuring local designs. Silver and gold pieces. Unique, one-of-a-kind designs.',
+      category: 'Retail',
+      targetAmount: 420000,
+      minInvestment: 8000,
+      maxInvestment: 420000,
+      images: ['https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1603561596112-0a1325a13532?w=800&h=600&fit=crop'],
+    },
+    {
+      title: 'Organic Skincare Products Set',
+      description: 'Complete organic skincare line including face creams, serums, and cleansers. Natural ingredients, cruelty-free.',
+      category: 'Retail',
+      targetAmount: 380000,
+      minInvestment: 7000,
+      maxInvestment: 380000,
+      images: ['https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800&h=600&fit=crop'],
+    },
+  ];
+
+  // Get more suppliers if needed
+  const allSuppliers = [...tradeSellers, ...tradeSellerCorporates].filter((s) => s.isVerified);
+  const additionalProducts: Project[] = [];
+
+  for (let i = 0; i < additionalCommoditiesAndServices.length; i++) {
+    const data = additionalCommoditiesAndServices[i];
+    const supplier = allSuppliers[i % allSuppliers.length]; // Cycle through suppliers
+    const currentAmount = data.targetAmount * (0.1 + Math.random() * 0.3); // 10-40% funded
+    
+    const product = await prisma.project.create({
+      data: {
+        title: data.title,
+        description: data.description,
+        category: data.category,
+        fundraiserId: supplier.id,
+        targetAmount: data.targetAmount,
+        currentAmount,
+        minInvestment: data.minInvestment,
+        maxInvestment: data.maxInvestment,
+        status: ProjectStatus.ACTIVE,
+        images: JSON.stringify(data.images),
+        documents: JSON.stringify([`https://example.com/documents/product-${i + productData.length}.pdf`]),
+        metadata: JSON.stringify({
+          productType: 'MARKETPLACE',
+          isGoodsOrService: true,
+          deliveryTime: data.category === 'Services' ? 'As per agreement' : '7-14 days',
+          location: 'Nairobi, Kenya',
+          quality: 'Premium',
+        }),
+        startDate: new Date(now.getTime() - ((i + productData.length) * 3 * 24 * 60 * 60 * 1000)),
+        endDate: new Date(now.getTime() + (60 - (i + productData.length) * 3) * 24 * 60 * 60 * 1000),
+      },
+    });
+    additionalProducts.push(product);
+    marketplaceProducts.push(product);
+  }
+  console.log(`✅ Created ${additionalProducts.length} additional commodities and services`);
+
+  // ============================================
+  // Learning Exchange Engine (LEE) Seed Data
+  // ============================================
+  console.log('\n📚 Creating Learning Exchange Engine data...');
+
+  // Course categories, levels, publishers
+  const CourseCategory = {
+    VENDOR_ONBOARDING: 'VENDOR_ONBOARDING',
+    AUCTION_BEST_PRACTICES: 'AUCTION_BEST_PRACTICES',
+    QUALITY_LOGISTICS: 'QUALITY_LOGISTICS',
+    TAX_INVOICING: 'TAX_INVOICING',
+    DISPUTE_PREVENTION: 'DISPUTE_PREVENTION',
+    COMPLIANCE: 'COMPLIANCE',
+  };
+
+  const CourseLevel = {
+    BEGINNER: 'BEGINNER',
+    INTERMEDIATE: 'INTERMEDIATE',
+    ADVANCED: 'ADVANCED',
+  };
+
+  const CoursePublisher = {
+    PLATFORM: 'PLATFORM',
+    PARTNER: 'PARTNER',
+    REGULATOR: 'REGULATOR',
+  };
+
+  const CourseStatus = {
+    DRAFT: 'DRAFT',
+    PUBLISHED: 'PUBLISHED',
+    ARCHIVED: 'ARCHIVED',
+  };
+
+  const CredentialType = {
+    CERTIFICATE: 'CERTIFICATE',
+    BADGE: 'BADGE',
+    CERTIFICATION: 'CERTIFICATION',
+  };
+
+  // Create courses
+  const courses: any[] = [];
+  const courseData = [
+    {
+      title: 'Vendor Onboarding Essentials',
+      description: 'Complete guide to becoming a successful vendor on the platform. Learn about trust scores, transaction caps, and best practices for listing products.',
+      category: CourseCategory.VENDOR_ONBOARDING,
+      level: CourseLevel.BEGINNER,
+      duration: 45,
+      publisher: CoursePublisher.PLATFORM,
+      isRequired: true,
+      unlocks: ['tee.listings.view', 'tee.trade.create'],
+      credentialType: CredentialType.CERTIFICATE,
+      expiryDays: 365,
+    },
+    {
+      title: 'Auction Bidding Best Practices',
+      description: 'Master the art of competitive bidding in reverse auctions. Learn pricing strategies, trust-weighted bidding, and how to win contracts.',
+      category: CourseCategory.AUCTION_BEST_PRACTICES,
+      level: CourseLevel.INTERMEDIATE,
+      duration: 60,
+      publisher: CoursePublisher.PLATFORM,
+      isRequired: false,
+      unlocks: ['auction.bid.create', 'rae.bid.create'],
+      credentialType: CredentialType.BADGE,
+      expiryDays: null,
+    },
+    {
+      title: 'Quality Control & Logistics Management',
+      description: 'Ensure product quality and efficient delivery. Learn quality standards, packaging, shipping, and customer satisfaction strategies.',
+      category: CourseCategory.QUALITY_LOGISTICS,
+      level: CourseLevel.INTERMEDIATE,
+      duration: 90,
+      publisher: CoursePublisher.PARTNER,
+      isRequired: false,
+      unlocks: ['tee.trade.view.own', 'quality.manage'],
+      credentialType: CredentialType.CERTIFICATE,
+      expiryDays: 730,
+    },
+    {
+      title: 'Tax & Invoicing Compliance',
+      description: 'Understand tax obligations, invoicing requirements, and compliance for marketplace transactions. Includes VAT, withholding tax, and record keeping.',
+      category: CourseCategory.TAX_INVOICING,
+      level: CourseLevel.ADVANCED,
+      duration: 75,
+      publisher: CoursePublisher.REGULATOR,
+      isRequired: false,
+      unlocks: ['tax.compliance', 'invoicing.create'],
+      credentialType: CredentialType.CERTIFICATION,
+      expiryDays: 365,
+    },
+    {
+      title: 'Dispute Prevention & Resolution',
+      description: 'Learn how to prevent disputes and handle them effectively when they arise. Communication strategies, documentation, and mediation processes.',
+      category: CourseCategory.DISPUTE_PREVENTION,
+      level: CourseLevel.INTERMEDIATE,
+      duration: 50,
+      publisher: CoursePublisher.PLATFORM,
+      isRequired: false,
+      unlocks: ['dispute.manage', 'dispute.resolve'],
+      credentialType: CredentialType.BADGE,
+      expiryDays: null,
+    },
+    {
+      title: 'Platform Compliance & Regulations',
+      description: 'Comprehensive guide to platform rules, regulations, and compliance requirements. Stay updated with latest policies and best practices.',
+      category: CourseCategory.COMPLIANCE,
+      level: CourseLevel.ADVANCED,
+      duration: 80,
+      publisher: CoursePublisher.REGULATOR,
+      isRequired: false,
+      unlocks: ['compliance.view', 'compliance.manage'],
+      credentialType: CredentialType.CERTIFICATION,
+      expiryDays: 180,
+    },
+    {
+      title: 'Advanced Auction Strategies',
+      description: 'Advanced techniques for winning high-value auctions. Multi-layer bidding, guarantee strategies, and risk management.',
+      category: CourseCategory.AUCTION_BEST_PRACTICES,
+      level: CourseLevel.ADVANCED,
+      duration: 120,
+      publisher: CoursePublisher.PARTNER,
+      isRequired: false,
+      unlocks: ['auction.bid.advanced', 'guarantee.manage'],
+      credentialType: CredentialType.CERTIFICATION,
+      expiryDays: 365,
+    },
+    {
+      title: 'Supply Chain Management',
+      description: 'Optimize your supply chain for efficiency and cost reduction. Inventory management, supplier relationships, and logistics optimization.',
+      category: CourseCategory.QUALITY_LOGISTICS,
+      level: CourseLevel.ADVANCED,
+      duration: 100,
+      publisher: CoursePublisher.PARTNER,
+      isRequired: false,
+      unlocks: ['supply.chain.manage', 'logistics.optimize'],
+      credentialType: CredentialType.CERTIFICATE,
+      expiryDays: 730,
+    },
+  ];
+
+  // YouTube video URLs for courses (educational videos)
+  const youtubeVideos = [
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQ', // Vendor Onboarding
+    'https://www.youtube.com/watch?v=jNQXAC9IVRw', // Auction Bidding
+    'https://www.youtube.com/watch?v=9bZkp7q19f0', // Quality Control
+    'https://www.youtube.com/watch?v=kJQP7kiw5Fk', // Tax & Invoicing
+    'https://www.youtube.com/watch?v=OPf0YbXqDm0', // Dispute Prevention
+    'https://www.youtube.com/watch?v=2Vv-BfVoq4g', // Platform Compliance
+    'https://www.youtube.com/watch?v=LXb3EKWsInQ', // Advanced Auction
+    'https://www.youtube.com/watch?v=ZbZSe6N_BXs', // Supply Chain
+  ];
+
+  for (let i = 0; i < courseData.length; i++) {
+    const data = courseData[i];
+    const course = await prisma.course.create({
+      data: {
+        title: data.title,
+        description: data.description,
+        category: data.category,
+        level: data.level,
+        duration: data.duration,
+        publisher: data.publisher,
+        contentUrl: `https://example.com/courses/${data.title.toLowerCase().replace(/\s+/g, '-')}/content`,
+        videoUrl: youtubeVideos[i % youtubeVideos.length], // Use YouTube URLs
+        materials: JSON.stringify([
+          `https://example.com/courses/${data.title.toLowerCase().replace(/\s+/g, '-')}/material1.pdf`,
+          `https://example.com/courses/${data.title.toLowerCase().replace(/\s+/g, '-')}/material2.pdf`,
+        ]),
+        unlocks: JSON.stringify(data.unlocks),
+        credentialType: data.credentialType,
+        isRequired: data.isRequired,
+        status: CourseStatus.PUBLISHED,
+        isActive: true,
+        expiryDays: data.expiryDays,
+        publishedAt: new Date(now.getTime() - (Math.random() * 30 * 24 * 60 * 60 * 1000)),
+        metadata: JSON.stringify({
+          estimatedHours: data.duration / 60,
+          difficulty: data.level,
+          language: 'en',
+        }),
+      },
+    });
+    courses.push(course);
+
+    // Create quiz for each course
+    const questions = [
+      {
+        question: `What is the main topic of ${data.title}?`,
+        type: 'multiple_choice',
+        options: ['Option A', 'Option B', 'Option C', 'Option D'],
+        correctAnswer: 0,
+        points: 10,
+      },
+      {
+        question: `Which of the following is a key learning outcome?`,
+        type: 'multiple_choice',
+        options: ['Outcome A', 'Outcome B', 'Outcome C', 'Outcome D'],
+        correctAnswer: 1,
+        points: 10,
+      },
+      {
+        question: `True or False: This course is essential for platform success.`,
+        type: 'true_false',
+        options: ['True', 'False'],
+        correctAnswer: 0,
+        points: 10,
+      },
+    ];
+
+    await prisma.quiz.create({
+      data: {
+        courseId: course.id,
+        title: `${data.title} - Assessment Quiz`,
+        questions: JSON.stringify(questions),
+        passingScore: 70,
+        timeLimit: 30,
+        attemptsAllowed: 3,
+        isActive: true,
+      },
+    });
+  }
+  console.log(`✅ Created ${courses.length} courses with quizzes`);
+
+  // Create enrollments for various users
+  const enrollments: any[] = [];
+  const enrollmentUsers = [
+    ...fundraisers.slice(0, 5),
+    ...suppliers.slice(0, 5),
+    ...investors.slice(0, 3),
+  ];
+
+  for (let i = 0; i < enrollmentUsers.length; i++) {
+    const user = enrollmentUsers[i];
+    const coursesToEnroll = courses.slice(0, Math.min(3 + (i % 3), courses.length));
+    
+    for (let j = 0; j < coursesToEnroll.length; j++) {
+      const course = coursesToEnroll[j];
+      const progress = j === 0 ? 100 : j === 1 ? 75 : 30; // Varying progress
+      const status = j === 0 ? 'COMPLETED' : j === 1 ? 'IN_PROGRESS' : 'ENROLLED';
+      const startedAt = new Date(now.getTime() - ((j + 1) * 7 * 24 * 60 * 60 * 1000));
+      const completedAt = j === 0 ? new Date(now.getTime() - (2 * 24 * 60 * 60 * 1000)) : null;
+      const quizScore = j === 0 ? 85 + Math.random() * 10 : null;
+      const passedQuiz = j === 0 ? (quizScore! >= 70) : false;
+
+      const enrollment = await prisma.enrollment.create({
+        data: {
+          userId: user.id,
+          courseId: course.id,
+          status,
+          progress,
+          startedAt,
+          completedAt,
+          quizScore,
+          passedQuiz,
+          expiresAt: course.expiryDays 
+            ? new Date(startedAt.getTime() + course.expiryDays * 24 * 60 * 60 * 1000)
+            : null,
+        },
+      });
+      enrollments.push(enrollment);
+
+      // Create credential for completed enrollments
+      if (status === 'COMPLETED' && passedQuiz) {
+        const credentialNumber = `CRED-${course.id.substring(0, 8).toUpperCase()}-${user.id.substring(0, 8).toUpperCase()}-${Date.now()}`;
+        await prisma.credential.create({
+          data: {
+            userId: user.id,
+            courseId: course.id,
+            enrollmentId: enrollment.id,
+            type: course.credentialType || CredentialType.CERTIFICATE,
+            title: `${course.title} - ${course.credentialType || 'Certificate'}`,
+            issuer: course.publisher,
+            credentialNumber,
+            verificationUrl: `https://platform.com/verify/${credentialNumber}`,
+            issuedAt: completedAt || new Date(),
+            expiresAt: course.expiryDays 
+              ? new Date((completedAt || new Date()).getTime() + course.expiryDays * 24 * 60 * 60 * 1000)
+              : null,
+            isExpired: false,
+            isRevoked: false,
+          },
+        });
+
+        // Create learning outcomes for completed courses
+        if (course.unlocks) {
+          const unlocks = JSON.parse(course.unlocks) as string[];
+          for (const feature of unlocks) {
+            await prisma.learningOutcome.create({
+              data: {
+                userId: user.id,
+                courseId: course.id,
+                unlockedFeature: feature,
+                unlockedAt: completedAt || new Date(),
+                isActive: true,
+              },
+            });
+          }
+        }
+      }
+
+      // Create quiz attempts for completed enrollments
+      if (status === 'COMPLETED' && quizScore !== null) {
+        const quiz = await prisma.quiz.findFirst({
+          where: { courseId: course.id },
+        });
+
+        if (quiz) {
+          const questions = JSON.parse(quiz.questions) as any[];
+          const answers = questions.map((q, idx) => ({
+            questionId: idx,
+            answer: q.correctAnswer,
+            isCorrect: true,
+          }));
+
+          await prisma.quizAttempt.create({
+            data: {
+              quizId: quiz.id,
+              userId: user.id,
+              enrollmentId: enrollment.id,
+              score: quizScore,
+              passed: passedQuiz,
+              answers: JSON.stringify(answers),
+              startedAt: new Date((completedAt || new Date()).getTime() - 30 * 60 * 1000),
+              completedAt: completedAt || new Date(),
+            },
+          });
+        }
+      }
+    }
+  }
+  console.log(`✅ Created ${enrollments.length} enrollments with credentials and outcomes`);
+
+  // Update user trust bands based on learning and activity
+  console.log('\n🔄 Updating user trust bands and activity...');
+  for (let i = 0; i < allUsers.length; i++) {
+    const user = allUsers[i];
+    const userEnrollments = enrollments.filter((e) => e.userId === user.id);
+    const completedCourses = userEnrollments.filter((e) => e.status === 'COMPLETED').length;
+    
+    // Set trust band based on activity and learning
+    let trustBand = 'T0';
+    if (user.isVerified) {
+      if (completedCourses >= 3) {
+        trustBand = 'T4';
+      } else if (completedCourses >= 2) {
+        trustBand = 'T3';
+      } else if (completedCourses >= 1) {
+        trustBand = 'T2';
+      } else {
+        trustBand = 'T1';
+      }
+    }
+
+    // Set last activity (recent for active users)
+    const lastActivity = new Date(now.getTime() - (Math.random() * 7 * 24 * 60 * 60 * 1000));
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        trustBand,
+        lastActivityAt: lastActivity,
+        onboardingCompleted: user.isVerified,
+        onboardingStep: user.isVerified ? 'COMPLETE' : 'REGISTRATION',
+        transactionCap: user.isVerified ? 100000 + (completedCourses * 50000) : 10000,
+      },
+    });
+  }
+  console.log(`✅ Updated trust bands and activity for ${allUsers.length} users`);
+
   console.log('\n📊 Final Summary:');
   const totalInvestorsFinal = investors.length + additionalInvestors.length;
   const totalFundraisersFinal = fundraisers.length + additionalFundraisers.length;
@@ -2017,14 +3254,19 @@ async function main() {
   console.log(`     • C2B: ${totalC2BConsumersFinal + totalC2BCorporatesFinal} (${totalC2BConsumersFinal} individuals, ${totalC2BCorporatesFinal} corporates)`);
   console.log(`     • B2B: ${totalB2BTradersFinal + totalB2BCorporatesFinal} (${totalB2BTradersFinal} traders, ${totalB2BCorporatesFinal} corporates)`);
   console.log(`     • Trade Exchange: ${totalTradeBuyersFinal + totalTradeBuyerCorporatesFinal + totalTradeSellersFinal + totalTradeSellerCorporatesFinal} (${totalTradeBuyersFinal + totalTradeBuyerCorporatesFinal} buyers, ${totalTradeSellersFinal + totalTradeSellerCorporatesFinal} sellers)`);
-  console.log(`   - Projects: ${projects.length + additionalProjects.length} (${projects.length} initial + ${additionalProjects.length} additional)`);
+  console.log(`   - Projects: ${projects.length + additionalProjects.length + marketplaceProducts.length + securitiesProjects.length} (${projects.length} initial + ${additionalProjects.length} additional + ${marketplaceProducts.length} marketplace + ${securitiesProjects.length} securities exchange)`);
   console.log(`   - Investments: ${investments.length + additionalInvestments.length} (${investments.length} initial + ${additionalInvestments.length} additional)`);
   console.log(`   - Auctions: ${auctions.length + additionalAuctions.length} (${auctions.length} initial + ${additionalAuctions.length} additional)`);
-  console.log(`   - Guarantee Requests: ${guaranteeRequests.length}`);
+  const allGuaranteeRequests = [...guaranteeRequests, ...additionalGuaranteeRequests];
+  console.log(`   - Guarantee Requests: ${allGuaranteeRequests.length} (${guaranteeRequests.length} initial + ${additionalGuaranteeRequests.length} additional)`);
   console.log(`   - Guarantee Allocations: ${guaranteeAllocations.length}`);
   console.log(`   - Trust Scores: ${allUsers.length}`);
   console.log(`   - Behavior Metrics: ${allUsers.length}`);
   console.log(`   - Readiness Metrics: ${fundraisers.length + Math.min(3, investors.length)}`);
+  console.log(`   - Learning Courses: ${courses.length}`);
+  console.log(`   - Learning Enrollments: ${enrollments.length}`);
+  console.log(`   - Learning Credentials: ${enrollments.filter((e) => e.status === 'COMPLETED').length}`);
+  console.log(`   - Learning Outcomes: ${enrollments.filter((e) => e.status === 'COMPLETED').length * 2}`);
   console.log(`   - Tokens: ${tokens.length}`);
   console.log(`   - Token Transactions: ${tokenTransactions.length}`);
   console.log(`   - Governance Proposals: ${proposals.length}`);

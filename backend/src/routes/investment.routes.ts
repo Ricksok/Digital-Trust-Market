@@ -1,15 +1,57 @@
-import express from 'express';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+/**
+ * Investment Routes
+ */
+
+import { Router } from 'express';
+import { authenticate } from '../middleware/auth.middleware';
+import {
+  requirePermission,
+  requireOwnership,
+  getInvestmentOwner,
+} from '../middleware/rbac.middleware';
 import * as investmentController from '../controllers/investment.controller';
 
-const router = express.Router();
+const router = Router();
 
-// Allow any authenticated user to create investments (authorization check happens in service)
-router.post('/', authenticate, investmentController.createInvestment);
-router.get('/', authenticate, investmentController.getInvestments);
-router.get('/:id', authenticate, investmentController.getInvestmentById);
-router.post('/:id/cancel', authenticate, investmentController.cancelInvestment);
-router.get('/project/:projectId', authenticate, investmentController.getProjectInvestments);
+/**
+ * POST /api/investments
+ * Create investment - requires investments.create permission
+ */
+router.post('/', authenticate, requirePermission('investments.create'), investmentController.createInvestment);
+
+/**
+ * GET /api/investments
+ * Get investments - requires investments.view permission
+ */
+router.get('/', authenticate, requirePermission('investments.view'), investmentController.getInvestments);
+
+/**
+ * GET /api/investments/project/:projectId
+ * Get project investments - requires investments.view permission
+ */
+router.get(
+  '/project/:projectId',
+  authenticate,
+  requirePermission('investments.view'),
+  investmentController.getProjectInvestments
+);
+
+/**
+ * GET /api/investments/:id
+ * Get single investment - requires investments.view permission
+ */
+router.get('/:id', authenticate, requirePermission('investments.view'), investmentController.getInvestmentById);
+
+/**
+ * POST /api/investments/:id/cancel
+ * Cancel investment - requires ownership or investments.cancel permission
+ */
+router.post(
+  '/:id/cancel',
+  authenticate,
+  requireOwnership('investments', (req) => req.params.id, getInvestmentOwner),
+  investmentController.cancelInvestment
+);
 
 export default router;
 

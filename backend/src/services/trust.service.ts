@@ -486,16 +486,64 @@ export const explainTrustScore = async (entityId: string) => {
 };
 
 /**
- * Apply trust decay (for entities with no recent activity)
+ * Calculate decay amount based on inactivity period
+ * Decay increases with time:
+ * - 30-60 days: 0.5 points/month
+ * - 60-90 days: 1 point/month
+ * - 90-180 days: 2 points/month
+ * - 180+ days: 3 points/month
  */
-export const applyTrustDecay = async (entityId: string, decayAmount: number = 1) => {
+const calculateDecayAmount = (daysInactive: number): number => {
+  if (daysInactive < 30) {
+    return 0; // No decay for active users
+  } else if (daysInactive < 60) {
+    return 0.5; // Light decay
+  } else if (daysInactive < 90) {
+    return 1.0; // Moderate decay
+  } else if (daysInactive < 180) {
+    return 2.0; // Significant decay
+  } else {
+    return 3.0; // Heavy decay
+  }
+};
+
+/**
+ * Apply trust decay (for entities with no recent activity)
+ * Enhanced with time-based decay rates
+ */
+export const applyTrustDecay = async (
+  entityId: string,
+  daysInactive?: number
+): Promise<{ updated: any; decayApplied: boolean }> => {
   const trustScore = await getOrCreateTrustScore(entityId);
-  
-  if (trustScore.trustScore <= 0) {
-    return trustScore; // Already at minimum
+  const user = await prisma.user.findUnique({
+    where: { id: entityId },
+    select: { lastActivityAt: true, createdAt: true },
+  });
+
+  // Calculate days inactive
+  if (daysInactive === undefined) {
+    const lastActivity = user?.lastActivityAt || user?.createdAt || new Date();
+    const now = new Date();
+    daysInactive = Math.floor((now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24));
   }
 
+  // No decay if user is active (less than 30 days)
+  if (daysInactive < 30) {
+    return { updated: trustScore, decayApplied: false };
+  }
+
+  if (trustScore.trustScore <= 0) {
+    return { updated: trustScore, decayApplied: false }; // Already at minimum
+  }
+
+  const decayAmount = calculateDecayAmount(daysInactive);
   const newScore = Math.max(0, trustScore.trustScore - decayAmount);
+
+  // Only apply decay if there's a meaningful change
+  if (decayAmount < 0.1) {
+    return { updated: trustScore, decayApplied: false };
+  }
 
   const updated = await prisma.trustScore.update({
     where: { entityId },
@@ -513,11 +561,183 @@ export const applyTrustDecay = async (entityId: string, decayAmount: number = 1)
       newScore,
       changeAmount: -decayAmount,
       triggerType: TRIGGER_TYPES.AUTOMATIC,
-      reason: `Trust decay applied due to inactivity. Decay: -${decayAmount}`,
+      reason: `Trust decay applied due to ${daysInactive} days of inactivity. Decay: -${decayAmount.toFixed(2)}`,
+      calculationDetails: JSON.stringify({
+        daysInactive,
+        decayRate: calculateDecayAmount(daysInactive),
+      }),
     },
   });
 
-  return updated;
+  return { updated, decayApplied: true };
+};
+
+/**
+ * Apply trust recovery (for entities with recent positive activity)
+ * Recovery is faster than decay to encourage re-engagement
+ */
+export const applyTrustRecovery = async (
+  entityId: string,
+  activityType: string = 'GENERAL',
+  activityValue: number = 1
+): Promise<{ updated: any; recoveryApplied: boolean }> => {
+  const trustScore = await getOrCreateTrustScore(entityId);
+  const user = await prisma.user.findUnique({
+    where: { id: entityId },
+    select: { lastActivityAt: true },
+  });
+
+  // Check if user has been inactive (needs recovery)
+  const lastActivity = user?.lastActivityAt;
+  if (!lastActivity) {
+    // First activity - no recovery needed
+    await prisma.user.update({
+      where: { id: entityId },
+      data: { lastActivityAt: new Date() },
+    });
+    return { updated: trustScore, recoveryApplied: false };
+  }
+
+  const daysSinceLastActivity = Math.floor(
+    (Date.now() - lastActivity.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  // Only apply recovery if user was inactive (30+ days) and now active
+  if (daysSinceLastActivity < 30) {
+    // User is already active - just update activity timestamp
+    await prisma.user.update({
+      where: { id: entityId },
+      data: { lastActivityAt: new Date() },
+    });
+    return { updated: trustScore, recoveryApplied: false };
+  }
+
+  // Calculate recovery amount based on activity value and previous inactivity
+  // Recovery is 2x the decay rate to encourage re-engagement
+  const baseRecovery = calculateDecayAmount(daysSinceLastActivity) * 2;
+  const recoveryAmount = Math.min(baseRecovery * activityValue, 5); // Cap at 5 points per recovery
+
+  if (recoveryAmount < 0.1) {
+    await prisma.user.update({
+      where: { id: entityId },
+      data: { lastActivityAt: new Date() },
+    });
+    return { updated: trustScore, recoveryApplied: false };
+  }
+
+  const newScore = Math.min(100, trustScore.trustScore + recoveryAmount);
+
+  const updated = await prisma.trustScore.update({
+    where: { entityId },
+    data: {
+      trustScore: newScore,
+      lastCalculatedAt: new Date(),
+    },
+  });
+
+  await prisma.user.update({
+    where: { id: entityId },
+    data: { lastActivityAt: new Date() },
+  });
+
+  await prisma.trustEvent.create({
+    data: {
+      trustScoreId: updated.id,
+      eventType: TRUST_EVENT_TYPES.RECOVERY_EVENT,
+      previousScore: trustScore.trustScore,
+      newScore,
+      changeAmount: recoveryAmount,
+      triggerType: TRIGGER_TYPES.BEHAVIOR,
+      triggerEntityType: activityType,
+      reason: `Trust recovery applied after ${daysSinceLastActivity} days of inactivity. Recovery: +${recoveryAmount.toFixed(2)}`,
+      calculationDetails: JSON.stringify({
+        daysSinceLastActivity,
+        activityType,
+        activityValue,
+        recoveryRate: recoveryAmount,
+      }),
+    },
+  });
+
+  return { updated, recoveryApplied: true };
+};
+
+/**
+ * Track user activity and apply recovery if needed
+ * Call this whenever a user performs any meaningful activity
+ */
+export const trackUserActivity = async (
+  entityId: string,
+  activityType: string = 'GENERAL',
+  activityValue: number = 1
+): Promise<void> => {
+  // Update last activity timestamp
+  await prisma.user.update({
+    where: { id: entityId },
+    data: { lastActivityAt: new Date() },
+  });
+
+  // Apply recovery if user was previously inactive
+  await applyTrustRecovery(entityId, activityType, activityValue);
+};
+
+/**
+ * Batch process trust decay for all inactive users
+ * Should be run periodically (e.g., daily via cron job)
+ */
+export const processTrustDecayBatch = async (options?: {
+  batchSize?: number;
+  maxDays?: number;
+}): Promise<{ processed: number; decayed: number; errors: number }> => {
+  const batchSize = options?.batchSize || 100;
+  const maxDays = options?.maxDays || 365; // Only process users inactive for up to 1 year
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - maxDays);
+
+  let processed = 0;
+  let decayed = 0;
+  let errors = 0;
+
+  try {
+    // Get all users who haven't been active recently
+    const inactiveUsers = await prisma.user.findMany({
+      where: {
+        OR: [
+          { lastActivityAt: null },
+          { lastActivityAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } }, // 30+ days
+        ],
+        isActive: true, // Only process active accounts
+      },
+      select: { id: true, lastActivityAt: true, createdAt: true },
+      take: batchSize,
+    });
+
+    for (const user of inactiveUsers) {
+      try {
+        const lastActivity = user.lastActivityAt || user.createdAt || new Date();
+        const daysInactive = Math.floor(
+          (Date.now() - lastActivity.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        if (daysInactive >= 30) {
+          const result = await applyTrustDecay(user.id, daysInactive);
+          if (result.decayApplied) {
+            decayed++;
+          }
+        }
+
+        processed++;
+      } catch (error) {
+        console.error(`Error processing trust decay for user ${user.id}:`, error);
+        errors++;
+      }
+    }
+  } catch (error) {
+    console.error('Error in batch trust decay processing:', error);
+    errors++;
+  }
+
+  return { processed, decayed, errors };
 };
 
 /**
@@ -555,5 +775,32 @@ export const adjustTrustScore = async (
   });
 
   return updated;
+};
+
+/**
+ * Get trust decay/recovery history for an entity
+ */
+export const getTrustDecayRecoveryHistory = async (
+  entityId: string,
+  limit: number = 50
+) => {
+  const trustScore = await prisma.trustScore.findUnique({
+    where: { entityId },
+  });
+
+  if (!trustScore) {
+    return [];
+  }
+
+  return await prisma.trustEvent.findMany({
+    where: {
+      trustScoreId: trustScore.id,
+      eventType: {
+        in: [TRUST_EVENT_TYPES.DECAY_APPLIED, TRUST_EVENT_TYPES.RECOVERY_EVENT],
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  });
 };
 

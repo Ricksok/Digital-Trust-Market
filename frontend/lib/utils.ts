@@ -58,6 +58,17 @@ export function truncate(text: string, length: number): string {
   return text.slice(0, length) + '...';
 }
 
+/**
+ * Format user type for display
+ * Shows "Super User" for admin users, otherwise returns the userType as-is
+ */
+export function formatUserType(userType: string | undefined, role: string | undefined): string {
+  if (role === 'ADMIN') {
+    return 'Super User';
+  }
+  return userType || 'User';
+}
+
 
 
 

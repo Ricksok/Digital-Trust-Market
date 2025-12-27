@@ -1,5 +1,14 @@
 import apiClient from './client';
 
+export interface Fundraiser {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  trustBand?: string;
+  trustScore?: number;
+}
+
 export interface Project {
   id: string;
   title: string;
@@ -17,6 +26,8 @@ export interface Project {
   endDate?: string | Date; // Optional end date
   createdAt: string;
   updatedAt: string;
+  fundraiserId?: string;
+  fundraiser?: Fundraiser;
 }
 
 export const projectsApi = {

@@ -24,9 +24,21 @@ export interface TrustEvent {
   createdAt: string;
 }
 
+export interface DecayRecoveryEvent {
+  id: string;
+  eventType: 'TRUST_DECAY_APPLIED' | 'TRUST_RECOVERY_EVENT';
+  previousScore: number;
+  newScore: number;
+  changeAmount: number;
+  reason: string;
+  triggerType: string;
+  createdAt: string;
+}
+
 export const trustApi = {
-  getScore: async (entityId: string) => {
-    const response = await apiClient.get(`/api/trust/${entityId}`);
+  getScore: async (entityId?: string) => {
+    const path = entityId ? `/api/trust/${entityId}` : '/api/trust';
+    const response = await apiClient.get(path);
     return response.data;
   },
 
@@ -35,13 +47,21 @@ export const trustApi = {
     return response.data;
   },
 
+  getDecayRecoveryHistory: async (entityId: string) => {
+    const response = await apiClient.get(`/api/trust/${entityId}/decay-recovery`);
+    return response.data;
+  },
+
   explain: async (entityId: string) => {
     const response = await apiClient.get(`/api/trust/${entityId}/explain`);
     return response.data;
   },
 
-  update: async (entityId: string, data: { trustScore?: number; reason: string }) => {
-    const response = await apiClient.post(`/api/trust/${entityId}/update`, data);
+  trackActivity: async (activityType: string, activityValue?: number) => {
+    const response = await apiClient.post('/api/trust/activity', {
+      activityType,
+      activityValue: activityValue || 1,
+    });
     return response.data;
   },
 };

@@ -59,30 +59,103 @@ export const createProject = async (fundraiserId: string, data: {
 };
 
 export const getAllProjects = async (query: any) => {
-  const { page = 1, limit = 10, status, category, search } = query;
+  const { 
+    page = 1, 
+    limit = 10, 
+    status, 
+    category, 
+    search,
+    minPrice,
+    maxPrice,
+    trustBand,
+    sortBy = 'newest', // newest, price_low, price_high, popularity
+    marketplaceOnly = false,
+  } = query;
   const skip = (Number(page) - 1) * Number(limit);
 
   const where: any = {};
+  
+  // Status filter
   if (status) where.status = status;
+  
+  // Category filter
   if (category) where.category = category;
+  
+  // Search filter
   if (search) {
     where.OR = [
       { title: { contains: search, mode: 'insensitive' } },
       { description: { contains: search, mode: 'insensitive' } },
     ];
   }
+  
+  // Price range filter
+  if (minPrice || maxPrice) {
+    where.targetAmount = {};
+    if (minPrice) where.targetAmount.gte = Number(minPrice);
+    if (maxPrice) where.targetAmount.lte = Number(maxPrice);
+  }
+  
+  // Marketplace only filter (goods/services)
+  if (marketplaceOnly) {
+    const goodsServicesCategories = [
+      'Agriculture & Food',
+      'Services',
+      'Retail',
+      'Technology',
+      'Manufacturing',
+      'Healthcare',
+      'Education',
+      'Transportation',
+    ];
+    where.OR = [
+      ...(where.OR || []),
+      { category: { in: goodsServicesCategories } },
+      { metadata: { contains: 'MARKETPLACE' } },
+      { metadata: { contains: 'isGoodsOrService' } },
+    ];
+  }
+  
+  // Trust band filter (requires join with User)
+  // Note: This will be handled in the include, we filter after fetching
+  // For better performance, we could use a raw query or join, but for now
+  // we'll filter in the service layer after including fundraiser data
 
-  const [projects, total] = await Promise.all([
+  // Sorting
+  let orderBy: any = { createdAt: 'desc' };
+  switch (sortBy) {
+    case 'price_low':
+      orderBy = { targetAmount: 'asc' };
+      break;
+    case 'price_high':
+      orderBy = { targetAmount: 'desc' };
+      break;
+    case 'popularity':
+      orderBy = { currentAmount: 'desc' };
+      break;
+    case 'newest':
+    default:
+      orderBy = { createdAt: 'desc' };
+      break;
+  }
+
+  const [allProjects, totalBeforeFilter] = await Promise.all([
     prisma.project.findMany({
       where,
-      skip,
-      take: Number(limit),
+      skip: 0, // Get all for trust band filtering
+      take: 1000, // Reasonable limit
       include: {
         fundraiser: {
           select: {
             id: true,
             firstName: true,
             lastName: true,
+            trustBand: true,
+            trustScore: {
+              select: {
+                trustScore: true, // Changed from overallScore to trustScore
+              },
+            },
           },
         },
         _count: {
@@ -91,13 +164,25 @@ export const getAllProjects = async (query: any) => {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy,
     }),
     prisma.project.count({ where }),
   ]);
 
+  // Filter by trust band if specified (after fetching with fundraiser data)
+  let filteredProjects = allProjects;
+  if (trustBand) {
+    filteredProjects = allProjects.filter(
+      (p: any) => p.fundraiser?.trustBand === trustBand
+    );
+  }
+
+  // Apply pagination after filtering
+  const paginatedProjects = filteredProjects.slice(skip, skip + Number(limit));
+  const total = trustBand ? filteredProjects.length : totalBeforeFilter;
+
   return {
-    projects,
+    projects: paginatedProjects,
     pagination: {
       page: Number(page),
       limit: Number(limit),

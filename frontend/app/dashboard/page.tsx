@@ -3,16 +3,19 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useCurrentUser } from '@/lib/queries';
+import { useCurrentUser, useUserProfile, useOnboardingStatus } from '@/lib/queries';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import Card, { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
+import { formatUserType } from '@/lib/utils';
 
 export default function DashboardPage() {
   const router = useRouter();
   const { data: user, isLoading, error } = useCurrentUser();
+  const { data: profile } = useUserProfile();
+  const { data: onboardingStatus } = useOnboardingStatus();
   const { isAuthenticated } = useAuthStore();
 
   // Redirect if not authenticated
@@ -21,6 +24,13 @@ export default function DashboardPage() {
       router.push('/auth/login');
     }
   }, [isAuthenticated, isLoading, router]);
+
+  // Redirect to onboarding if not completed
+  useEffect(() => {
+    if (onboardingStatus && !onboardingStatus.completed && isAuthenticated) {
+      router.push('/onboarding');
+    }
+  }, [onboardingStatus, isAuthenticated, router]);
 
   if (isLoading) {
     return (
@@ -104,7 +114,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500 mb-1">User Type</p>
-                  <Badge variant="outline">{user.userType}</Badge>
+                  <Badge variant="outline">{formatUserType(user.userType, user.role)}</Badge>
                 </div>
                 {user.firstName && (
                   <div>
@@ -112,6 +122,46 @@ export default function DashboardPage() {
                     <p className="text-base text-gray-900">
                       {user.firstName} {user.lastName}
                     </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Trust Band & Transaction Caps */}
+        {profile && (profile.trustBand || profile.transactionCap) && (
+          <Card variant="elevated">
+            <CardHeader>
+              <CardTitle>Account Limits & Trust</CardTitle>
+              <CardDescription>Your trust band and transaction limits</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid sm:grid-cols-2 gap-6">
+                {profile.trustBand && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 mb-2">Trust Band</p>
+                    <div className="flex items-center gap-3">
+                      <Badge variant="primary" size="md">
+                        {profile.trustBand}
+                      </Badge>
+                      <span className="text-sm text-gray-600">
+                        {profile.trustBand === 'A' || profile.trustBand === 'T4' ? 'Preferred - Highest trust level' : ''}
+                        {profile.trustBand === 'B' || profile.trustBand === 'T3' ? 'Trusted - High trust level' : ''}
+                        {profile.trustBand === 'C' || profile.trustBand === 'T2' ? 'Reliable - Medium trust level' : ''}
+                        {profile.trustBand === 'D' || profile.trustBand === 'T1' ? 'Verified - Basic trust level' : ''}
+                        {profile.trustBand === 'T0' ? 'Unverified - No trust level' : ''}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {profile.transactionCap && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 mb-2">Transaction Cap</p>
+                    <p className="text-2xl font-bold text-primary-600">
+                      ${profile.transactionCap.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">Maximum per transaction</p>
                   </div>
                 )}
               </div>

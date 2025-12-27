@@ -4,22 +4,28 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
-import { RegisterData } from '@/lib/api/auth';
-import { useRegister } from '@/lib/queries';
+import { RegisterUserInput } from '@/lib/api/onboarding';
+import { useRegisterOnboarding } from '@/lib/queries';
 import { useAuthStore } from '@/lib/stores/auth.store';
 
-const USER_ROLES = [
-  { value: 'INDIVIDUAL_INVESTOR', label: 'Individual Investor' },
-  { value: 'INSTITUTIONAL_INVESTOR', label: 'Institutional Investor' },
-  { value: 'IMPACT_FUND', label: 'Impact Fund' },
-  { value: 'SME_STARTUP', label: 'SME & Startup' },
-  { value: 'SOCIAL_ENTERPRISE', label: 'Social Enterprise' },
-  { value: 'REAL_ESTATE_PROJECT', label: 'Real Estate Project' },
+// Workflow roles as per Feature 0.1
+const WORKFLOW_ROLES = [
+  { value: 'RETAIL_TRADER', label: 'Retail Trader' },
+  { value: 'SUPPLIER', label: 'Supplier' },
+  { value: 'BUYER', label: 'Buyer' },
+];
+
+const ENTITY_TYPES = [
+  { value: 'INDIVIDUAL', label: 'Individual' },
+  { value: 'COMPANY', label: 'Company' },
+  { value: 'SACCO', label: 'SACCO' },
+  { value: 'FUND', label: 'Fund' },
+  { value: 'INSTITUTIONAL_BUYER', label: 'Institutional Buyer' },
 ];
 
 export default function RegisterPage() {
   const router = useRouter();
-  const register = useRegister();
+  const register = useRegisterOnboarding();
   const { isAuthenticated } = useAuthStore();
   const {
     register: registerField,
@@ -27,7 +33,7 @@ export default function RegisterPage() {
     watch,
     formState: { errors },
     setError: setFormError,
-  } = useForm<RegisterData & { confirmPassword: string }>();
+  } = useForm<RegisterUserInput & { confirmPassword: string }>();
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -37,11 +43,9 @@ export default function RegisterPage() {
   }, [isAuthenticated, router]);
 
   const selectedRole = watch('role');
-  const userType = selectedRole?.includes('INVESTOR') || selectedRole === 'IMPACT_FUND'
-    ? 'INVESTOR'
-    : 'FUNDRAISER';
+  const selectedEntityType = watch('entityType');
 
-  const onSubmit = (data: RegisterData & { confirmPassword: string }) => {
+  const onSubmit = (data: RegisterUserInput & { confirmPassword: string }) => {
     if (data.password !== data.confirmPassword) {
       setFormError('confirmPassword', {
         type: 'manual',
@@ -50,19 +54,22 @@ export default function RegisterPage() {
       return;
     }
 
-    const registerData: RegisterData = {
+    const registerData: RegisterUserInput = {
       email: data.email,
       password: data.password,
       firstName: data.firstName,
       lastName: data.lastName,
-      role: data.role,
-      userType: userType,
+      phone: data.phone,
+      role: data.role as 'RETAIL_TRADER' | 'SUPPLIER' | 'BUYER',
+      entityType: data.entityType as RegisterUserInput['entityType'],
+      walletAddress: data.walletAddress,
     };
 
     register.mutate(registerData, {
       onSuccess: () => {
-        // Redirect to dashboard on success
-        router.push('/dashboard');
+        // Redirect to onboarding page after successful registration
+        // Note: User will need to login first if backend doesn't return tokens
+        router.push('/onboarding');
       },
     });
   };
@@ -106,23 +113,23 @@ export default function RegisterPage() {
                 <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
                   First Name
                 </label>
-              <input
-                {...registerField('firstName')}
-                type="text"
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                placeholder="First name"
-              />
+                <input
+                  {...registerField('firstName')}
+                  type="text"
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                  placeholder="First name"
+                />
               </div>
               <div>
                 <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
                   Last Name
                 </label>
-              <input
-                {...registerField('lastName')}
-                type="text"
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                placeholder="Last name"
-              />
+                <input
+                  {...registerField('lastName')}
+                  type="text"
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                  placeholder="Last name"
+                />
               </div>
             </div>
 
@@ -149,15 +156,27 @@ export default function RegisterPage() {
             </div>
 
             <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                Phone (Optional)
+              </label>
+              <input
+                {...registerField('phone')}
+                type="tel"
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                placeholder="Phone number"
+              />
+            </div>
+
+            <div>
               <label htmlFor="role" className="block text-sm font-medium text-gray-700">
-                Account Type
+                Role
               </label>
               <select
-                {...registerField('role', { required: 'Please select an account type' })}
+                {...registerField('role', { required: 'Please select a role' })}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
               >
-                <option value="">Select account type</option>
-                {USER_ROLES.map((role) => (
+                <option value="">Select role</option>
+                {WORKFLOW_ROLES.map((role) => (
                   <option key={role.value} value={role.value}>
                     {role.label}
                   </option>
@@ -169,6 +188,26 @@ export default function RegisterPage() {
             </div>
 
             <div>
+              <label htmlFor="entityType" className="block text-sm font-medium text-gray-700">
+                Entity Type
+              </label>
+              <select
+                {...registerField('entityType')}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+              >
+                <option value="">Select entity type (optional)</option>
+                {ENTITY_TYPES.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Select your entity type to help us set appropriate trust bands and transaction limits
+              </p>
+            </div>
+
+            <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
               </label>
@@ -176,8 +215,8 @@ export default function RegisterPage() {
                 {...registerField('password', {
                   required: 'Password is required',
                   minLength: {
-                    value: 6,
-                    message: 'Password must be at least 6 characters',
+                    value: 8,
+                    message: 'Password must be at least 8 characters',
                   },
                 })}
                 type="password"
@@ -223,5 +262,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-
-

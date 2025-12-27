@@ -48,30 +48,37 @@ export const useTrustExplanation = (entityId: string) => {
 };
 
 /**
- * Update trust score mutation hook
+ * Get decay/recovery history query hook
  */
-export const useUpdateTrustScore = () => {
+export const useDecayRecoveryHistory = (entityId: string) => {
+  return useQuery({
+    queryKey: ['trust', 'decay-recovery', entityId],
+    queryFn: async () => {
+      const response = await trustApi.getDecayRecoveryHistory(entityId);
+      return response;
+    },
+    enabled: !!entityId,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+};
+
+/**
+ * Track user activity mutation hook
+ */
+export const useTrackActivity = () => {
   const queryClient = useQueryClient();
   const { showNotification } = useUIStore();
 
   return useMutation({
-    mutationFn: ({ entityId, data }: { entityId: string; data: { trustScore?: number; reason: string } }) =>
-      trustApi.update(entityId, data),
-    onSuccess: (response, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['trust', 'score', variables.entityId] });
-      queryClient.invalidateQueries({ queryKey: ['trust', 'history', variables.entityId] });
-      queryClient.invalidateQueries({ queryKey: ['trust', 'explain', variables.entityId] });
-      showNotification({
-        type: 'success',
-        message: 'Trust score updated successfully',
-      });
+    mutationFn: ({ activityType, activityValue }: { activityType: string; activityValue?: number }) =>
+      trustApi.trackActivity(activityType, activityValue),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trust'] });
+      // Silent success - activity tracking is background
     },
     onError: (error: any) => {
-      const errorMessage = error.response?.data?.error?.message || 'Failed to update trust score';
-      showNotification({
-        type: 'error',
-        message: errorMessage,
-      });
+      // Silent error - activity tracking failures shouldn't disrupt UX
+      console.error('Failed to track activity:', error);
     },
   });
 };

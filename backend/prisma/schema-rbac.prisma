@@ -1,0 +1,126 @@
+// ============================================
+// Enterprise RBAC System - Role & Permission Models
+// ============================================
+// Add these models to your main schema.prisma file
+
+// Permission Model - Defines what actions can be performed
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique // e.g., "projects.create", "investments.view"
+  resource    String   // e.g., "projects", "investments", "reports"
+  action      String   // e.g., "create", "view", "update", "delete", "approve"
+  description String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  rolePermissions RolePermission[]
+  
+  @@index([resource])
+  @@index([action])
+  @@index([resource, action])
+  @@map("permissions")
+}
+
+// Role Model - Defines who can perform actions
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique // e.g., "ADMIN", "INVESTOR", "FUNDRAISER"
+  displayName String   // e.g., "Administrator", "Investor", "Fundraiser"
+  description String?
+  isSystem    Boolean  @default(false) // System roles cannot be deleted
+  isActive    Boolean  @default(true)
+  
+  // Hierarchy (optional - for role inheritance)
+  parentRoleId String?
+  parentRole   Role?   @relation("RoleHierarchy", fields: [parentRoleId], references: [id])
+  childRoles   Role[]  @relation("RoleHierarchy")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  rolePermissions RolePermission[]
+  userRoles      UserRole[]
+  
+  @@index([name])
+  @@index([isActive])
+  @@map("roles")
+}
+
+// Role-Permission Mapping - Links roles to permissions
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String
+  permissionId String
+  
+  // Conditions (optional - for dynamic permissions)
+  // JSON: {"entityType": "SME_STARTUP", "minTrustScore": 50}
+  conditions   String?
+  
+  createdAt DateTime @default(now())
+  
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// User-Role Assignment - Assigns roles to users
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  roleId    String
+  
+  // Context (optional - for contextual roles)
+  contextType String? // e.g., "PROJECT", "INVESTMENT", "GLOBAL"
+  contextId   String? // ID of the context (project ID, etc.)
+  
+  // Assignment metadata
+  assignedBy String?  // User ID who assigned this role
+  assignedAt DateTime @default(now())
+  expiresAt  DateTime? // Optional expiration
+  isActive   Boolean  @default(true)
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, roleId, contextType, contextId])
+  @@index([userId])
+  @@index([roleId])
+  @@index([contextType, contextId])
+  @@index([isActive])
+  @@map("user_roles")
+}
+
+// Permission Audit Log - Tracks all permission checks
+model PermissionAudit {
+  id            String   @id @default(uuid())
+  userId        String
+  permission    String   // Permission name
+  resource      String?  // Resource accessed
+  resourceId    String?  // Specific resource ID
+  action        String   // ALLOWED, DENIED
+  reason        String?  // Why denied/allowed
+  ipAddress     String?
+  userAgent     String?
+  
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
+  @@index([permission])
+  @@index([createdAt])
+  @@index([action])
+  @@map("permission_audits")
+}
+
+// Update User model to include UserRole relation
+// Add this to the existing User model:
+// userRoles      UserRole[] // RBAC role assignments
+

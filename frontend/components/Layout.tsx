@@ -6,14 +6,21 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import Button from './ui/Button';
 import Dropdown from './ui/Dropdown';
+import NestedDropdown from './ui/NestedDropdown';
 import UserMenu from './ui/UserMenu';
 import { useAuthStore } from '@/lib/stores/auth.store';
+import { useCart } from '@/lib/queries';
+import { Cart } from '@/lib/api/cart';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { isAuthenticated, user } = useAuthStore();
+  const { data: cart } = useCart();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openMobileDropdown, setOpenMobileDropdown] = useState<string | null>(null);
+  const [openMobileSubmenu, setOpenMobileSubmenu] = useState<string | null>(null);
+  
+  const cartItemCount = (cart as Cart)?.itemCount || 0;
 
   // Don't show layout on auth pages
   if (pathname?.startsWith('/auth')) {
@@ -28,11 +35,39 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     investorOnly?: boolean;
   }
 
-  const marketsItems: NavItem[] = [
-    { href: '/investments', label: 'Investments' },
-    { href: '/guarantees', label: 'Guarantees' },
+  interface NestedNavItem {
+    href?: string;
+    label: string;
+    adminOnly?: boolean;
+    investorOnly?: boolean;
+    children?: NestedNavItem[];
+  }
+
+  const marketplaceItems: NavItem[] = [
+    { href: '/marketplace', label: 'Marketplace' },
     { href: '/commodities', label: 'Commodities' },
     { href: '/services', label: 'Services' },
+  ];
+
+  // Securities Exchange with nested structure
+  // Two-sided marketplace: Projects (products) can be purchased with Equity or Debt (secured by Guarantees)
+  const securitiesExchangeItems: NestedNavItem[] = [
+    { href: '/securities/projects', label: 'Projects' }, // Products for sale
+    {
+      label: 'Equity', // Consideration/Payment Method
+      children: [
+        { href: '/securities/equity/ordinary-shares', label: 'Ordinary Shares' },
+        { href: '/securities/equity/preference-shares', label: 'Preference Shares' },
+      ],
+    },
+    {
+      label: 'Debt', // Consideration/Payment Method (Secured by Guarantees)
+      children: [
+        { href: '/securities/debt/bonds', label: 'Bonds' },
+        { href: '/securities/debt/loans', label: 'Loans' },
+      ],
+    },
+    { href: '/securities/guarantees', label: 'Guarantees' }, // Security for Debt
   ];
 
   const auctionsItems: NavItem[] = [
@@ -44,13 +79,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const analyticsItems: NavItem[] = [
     { href: '/analytics', label: 'Analytics' },
     { href: '/trust', label: 'Trust Score' },
+    { href: '/learning', label: 'Learning Exchange' },
     { href: '/regulatory-reporting', label: 'Regulatory Reports', adminOnly: true },
     { href: '/investor-reporting', label: 'Investor Reports', investorOnly: true },
   ];
 
+  const vendorItems: NavItem[] = [
+    { href: '/vendor-central', label: 'Vendor Dashboard' },
+  ];
+
   const topLevelNavItems = [
     { href: '/', label: 'Home' },
-    { href: '/projects', label: 'Projects' },
     { href: '/governance', label: 'Governance' },
   ];
 
@@ -60,6 +99,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }
     return pathname?.startsWith(href);
   };
+
+  // Check if Securities Exchange section is active
+  const isSecuritiesActive = pathname?.startsWith('/securities') || pathname?.startsWith('/projects');
+  
+  // Check if Projects section is active (for mobile menu)
+  const isProjectsActive = pathname?.startsWith('/projects') || pathname?.startsWith('/securities/projects');
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -97,8 +142,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               ))}
               
               <Dropdown
-                label="Markets"
-                items={marketsItems}
+                label="Marketplace"
+                items={marketplaceItems}
+                user={user}
+              />
+              
+              <NestedDropdown
+                label="Securities Exchange"
+                items={securitiesExchangeItems}
                 user={user}
               />
               
@@ -113,10 +164,33 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 items={analyticsItems}
                 user={user}
               />
+              
+              {/* Vendor Central - only show for suppliers/vendors */}
+              {user && (user.role === 'SUPPLIER' || user.role?.includes('VENDOR')) && (
+                <Dropdown
+                  label="Vendor"
+                  items={vendorItems}
+                  user={user}
+                />
+              )}
             </div>
 
             {/* Right Side Actions */}
             <div className="flex items-center gap-3">
+              {/* Cart Icon */}
+              {isAuthenticated && (
+                <Link href="/cart" className="relative p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  {cartItemCount > 0 && (
+                    <span className="absolute top-0 right-0 bg-primary-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                      {cartItemCount > 99 ? '99+' : cartItemCount}
+                    </span>
+                  )}
+                </Link>
+              )}
+              
               {isAuthenticated ? (
                 <UserMenu />
               ) : (
@@ -232,25 +306,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   </>
                 )}
                 
-                {/* Markets Dropdown */}
+                {/* Marketplace Dropdown */}
                 <div className="space-y-1">
                   <button
-                    onClick={() => setOpenMobileDropdown(openMobileDropdown === 'markets' ? null : 'markets')}
+                    onClick={() => setOpenMobileDropdown(openMobileDropdown === 'marketplace' ? null : 'marketplace')}
                     className={cn(
                       'w-full flex items-center justify-between px-3 py-2 rounded-lg text-base font-medium transition-colors',
-                      pathname?.startsWith('/investments') ||
-                      pathname?.startsWith('/guarantees') ||
+                      pathname?.startsWith('/marketplace') ||
                       pathname?.startsWith('/commodities') ||
                       pathname?.startsWith('/services')
                         ? 'bg-primary-50 text-primary-700'
                         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                     )}
                   >
-                    Markets
+                    Marketplace
                     <svg
                       className={cn(
                         'w-4 h-4 transition-transform duration-200',
-                        openMobileDropdown === 'markets' && 'rotate-180'
+                        openMobileDropdown === 'marketplace' && 'rotate-180'
                       )}
                       fill="none"
                       stroke="currentColor"
@@ -259,9 +332,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  {openMobileDropdown === 'markets' && (
+                  {openMobileDropdown === 'marketplace' && (
                     <div className="pl-4 space-y-1">
-                      {marketsItems
+                      {marketplaceItems
                         .filter((item) => {
                           if (item.adminOnly && user?.role !== 'ADMIN') return false;
                           if (item.investorOnly && user?.userType !== 'INVESTOR' && !user?.role?.includes('INVESTOR')) return false;
@@ -285,6 +358,195 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                             {item.label}
                           </Link>
                         ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Securities Exchange Dropdown - Mobile */}
+                <div className="space-y-1">
+                  <button
+                    onClick={() => setOpenMobileDropdown(openMobileDropdown === 'securities' ? null : 'securities')}
+                    className={cn(
+                      'w-full flex items-center justify-between px-3 py-2 rounded-lg text-base font-medium transition-colors',
+                      isSecuritiesActive
+                        ? 'bg-primary-50 text-primary-700'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    )}
+                  >
+                    Securities Exchange
+                    <svg
+                      className={cn(
+                        'w-4 h-4 transition-transform duration-200',
+                        openMobileDropdown === 'securities' && 'rotate-180'
+                      )}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {openMobileDropdown === 'securities' && (
+                    <div className="pl-4 space-y-1">
+                      {/* Projects Section */}
+                      <Link
+                        href="/securities/projects"
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          setOpenMobileDropdown(null);
+                          setOpenMobileSubmenu(null);
+                        }}
+                        className={cn(
+                          'block px-3 py-2 rounded-lg text-sm transition-colors',
+                          isProjectsActive
+                            ? 'bg-primary-50 text-primary-700 font-medium'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        )}
+                      >
+                        Projects
+                      </Link>
+
+                      {/* Equity Section */}
+                      <div>
+                        <button
+                          onClick={() => setOpenMobileSubmenu(openMobileSubmenu === 'equity' ? null : 'equity')}
+                          className={cn(
+                            'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                            pathname?.startsWith('/securities/equity')
+                              ? 'bg-primary-50 text-primary-700'
+                              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                          )}
+                        >
+                          Equity
+                          <svg
+                            className={cn(
+                              'w-4 h-4 transition-transform duration-200',
+                              openMobileSubmenu === 'equity' && 'rotate-180'
+                            )}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                        {openMobileSubmenu === 'equity' && (
+                          <div className="pl-4 space-y-1 mt-1">
+                            <Link
+                              href="/securities/equity/ordinary-shares"
+                              onClick={() => {
+                                setIsMobileMenuOpen(false);
+                                setOpenMobileDropdown(null);
+                                setOpenMobileSubmenu(null);
+                              }}
+                              className={cn(
+                                'block px-3 py-2 rounded-lg text-sm transition-colors',
+                                isActive('/securities/equity/ordinary-shares')
+                                  ? 'bg-primary-50 text-primary-700 font-medium'
+                                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                              )}
+                            >
+                              Ordinary Shares
+                            </Link>
+                            <Link
+                              href="/securities/equity/preference-shares"
+                              onClick={() => {
+                                setIsMobileMenuOpen(false);
+                                setOpenMobileDropdown(null);
+                                setOpenMobileSubmenu(null);
+                              }}
+                              className={cn(
+                                'block px-3 py-2 rounded-lg text-sm transition-colors',
+                                isActive('/securities/equity/preference-shares')
+                                  ? 'bg-primary-50 text-primary-700 font-medium'
+                                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                              )}
+                            >
+                              Preference Shares
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Debt Section */}
+                      <div>
+                        <button
+                          onClick={() => setOpenMobileSubmenu(openMobileSubmenu === 'debt' ? null : 'debt')}
+                          className={cn(
+                            'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                            pathname?.startsWith('/securities/debt')
+                              ? 'bg-primary-50 text-primary-700'
+                              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                          )}
+                        >
+                          Debt
+                          <svg
+                            className={cn(
+                              'w-4 h-4 transition-transform duration-200',
+                              openMobileSubmenu === 'debt' && 'rotate-180'
+                            )}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                        {openMobileSubmenu === 'debt' && (
+                          <div className="pl-4 space-y-1 mt-1">
+                            <Link
+                              href="/securities/debt/bonds"
+                              onClick={() => {
+                                setIsMobileMenuOpen(false);
+                                setOpenMobileDropdown(null);
+                                setOpenMobileSubmenu(null);
+                              }}
+                              className={cn(
+                                'block px-3 py-2 rounded-lg text-sm transition-colors',
+                                isActive('/securities/debt/bonds')
+                                  ? 'bg-primary-50 text-primary-700 font-medium'
+                                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                              )}
+                            >
+                              Bonds
+                            </Link>
+                            <Link
+                              href="/securities/debt/loans"
+                              onClick={() => {
+                                setIsMobileMenuOpen(false);
+                                setOpenMobileDropdown(null);
+                                setOpenMobileSubmenu(null);
+                              }}
+                              className={cn(
+                                'block px-3 py-2 rounded-lg text-sm transition-colors',
+                                isActive('/securities/debt/loans')
+                                  ? 'bg-primary-50 text-primary-700 font-medium'
+                                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                              )}
+                            >
+                              Loans
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Guarantees */}
+                      <Link
+                        href="/securities/guarantees"
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          setOpenMobileDropdown(null);
+                          setOpenMobileSubmenu(null);
+                        }}
+                        className={cn(
+                          'block px-3 py-2 rounded-lg text-sm transition-colors',
+                          isActive('/securities/guarantees')
+                            ? 'bg-primary-50 text-primary-700 font-medium'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        )}
+                      >
+                        Guarantees
+                      </Link>
                     </div>
                   )}
                 </div>
@@ -351,8 +613,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     onClick={() => setOpenMobileDropdown(openMobileDropdown === 'analytics' ? null : 'analytics')}
                     className={cn(
                       'w-full flex items-center justify-between px-3 py-2 rounded-lg text-base font-medium transition-colors',
-                      pathname?.startsWith('/analytics') || 
+                      pathname?.startsWith('/analytics') ||
                       pathname?.startsWith('/trust') ||
+                      pathname?.startsWith('/learning') ||
                       pathname?.startsWith('/regulatory-reporting') ||
                       pathname?.startsWith('/investor-reporting')
                         ? 'bg-primary-50 text-primary-700'
@@ -401,6 +664,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     </div>
                   )}
                 </div>
+
+                {/* Vendor Dropdown - Mobile */}
+                {user && (user.role === 'SUPPLIER' || user.role?.includes('VENDOR')) && (
+                  <div className="space-y-1">
+                    <Link
+                      href="/vendor-central"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={cn(
+                        'block px-3 py-2 rounded-lg text-base font-medium transition-colors',
+                        pathname?.startsWith('/vendor-central')
+                          ? 'bg-primary-50 text-primary-700'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      )}
+                    >
+                      Vendor Dashboard
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
           )}

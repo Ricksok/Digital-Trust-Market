@@ -38,6 +38,7 @@ services:
       # Add other environment variables as needed
     ports:
       - "${BACKEND_PORT:-3001}:3001"
+      - "5555:5555"  # Prisma Studio
     # Development: Uncomment volumes for hot reload
     # Production: Use built files from image, no volume mounts needed
     volumes:

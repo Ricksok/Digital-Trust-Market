@@ -70,14 +70,14 @@ export default function Home() {
             </div>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
-              <Link href="/auth/register">
+              <Link href="/marketplace">
                 <Button size="lg" variant="primary">
-                  Get Started
+                  Shop Marketplace
                 </Button>
               </Link>
-              <Link href="/projects">
+              <Link href="/auth/register">
                 <Button size="lg" variant="outline">
-                  Explore Projects
+                  Get Started
                 </Button>
               </Link>
             </div>

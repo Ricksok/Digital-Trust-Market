@@ -69,6 +69,15 @@ export const login = async (email: string, password: string) => {
     throw createError('Account is deactivated', 403);
   }
 
+  // Track user activity (login) - this will apply trust recovery if needed
+  try {
+    const { trackUserActivity } = await import('./trust.service');
+    await trackUserActivity(user.id, 'LOGIN', 1);
+  } catch (error) {
+    // Non-critical - log but don't fail login
+    console.error('Failed to track user activity on login:', error);
+  }
+
   const token = generateToken(user);
   const refreshToken = generateRefreshToken(user);
 

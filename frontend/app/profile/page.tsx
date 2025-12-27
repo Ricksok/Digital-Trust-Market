@@ -8,6 +8,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import Card, { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
+import { formatUserType } from '@/lib/utils';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -81,7 +82,7 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500 mb-1">User Type</p>
-                  <Badge variant="outline">{user.userType}</Badge>
+                  <Badge variant="outline">{formatUserType(user.userType, user.role)}</Badge>
                 </div>
                 {user.firstName && (
                   <div>

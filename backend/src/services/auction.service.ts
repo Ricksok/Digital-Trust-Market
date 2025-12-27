@@ -194,6 +194,15 @@ export const placeBid = async (
     },
   });
 
+  // Track user activity (bid submission)
+  try {
+    const { trackUserActivity } = await import('./trust.service');
+    await trackUserActivity(bidderId, 'AUCTION', 1.5); // Higher value for auction participation
+  } catch (error) {
+    // Non-critical - log but don't fail bid
+    console.error('Failed to track user activity on bid submission:', error);
+  }
+
   return bid;
 };
 

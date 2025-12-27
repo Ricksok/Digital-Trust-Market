@@ -75,6 +75,17 @@ export const handleWebhook = async (payload: any, headers: any) => {
           data: { status: 'APPROVED' },
         });
       }
+
+      // Track user activity (payment completion)
+      if (payment?.userId) {
+        try {
+          const { trackUserActivity } = await import('./trust.service');
+          await trackUserActivity(payment.userId, 'PAYMENT', 1.5); // Higher value for payment completion
+        } catch (error) {
+          // Non-critical - log but don't fail payment processing
+          console.error('Failed to track user activity on payment completion:', error);
+        }
+      }
     }
   }
 };

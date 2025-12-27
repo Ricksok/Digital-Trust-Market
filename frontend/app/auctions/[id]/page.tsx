@@ -208,7 +208,22 @@ export default function AuctionDetailPage() {
             <h2 className="text-xl font-semibold mb-4">Place Bid</h2>
             {placeBid.error && (
               <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-                {(placeBid.error as any)?.response?.data?.message || (placeBid.error as Error)?.message || 'Failed to place bid'}
+                {(placeBid.error as any)?.response?.data?.error?.message || 
+                 (placeBid.error as any)?.response?.data?.message || 
+                 (placeBid.error as Error)?.message || 
+                 'Failed to place bid'}
+                {/* Check if it's a learning gate error */}
+                {(placeBid.error as any)?.response?.data?.error?.unlockingCourse && (
+                  <div className="mt-3 pt-3 border-t border-red-200">
+                    <p className="text-sm font-medium mb-2">Required Learning:</p>
+                    <Link
+                      href={`/learning/courses/${(placeBid.error as any).response.data.error.unlockingCourse.id}`}
+                      className="text-sm text-primary-600 hover:text-primary-700 underline"
+                    >
+                      Complete: {(placeBid.error as any).response.data.error.unlockingCourse.title}
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
             <form onSubmit={handlePlaceBid} className="space-y-4">

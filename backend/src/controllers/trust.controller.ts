@@ -79,3 +79,44 @@ export const adjustTrustScore = async (req: AuthRequest, res: Response, next: Ne
   }
 };
 
+export const trackActivity = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const entityId = req.user!.id;
+    const activityType = req.body.activityType || 'GENERAL';
+    const activityValue = parseFloat(req.body.activityValue) || 1;
+
+    await trustService.trackUserActivity(entityId, activityType, activityValue);
+    res.json({ success: true, message: 'Activity tracked successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getDecayRecoveryHistory = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const entityId = req.params.entityId || req.user!.id;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const history = await trustService.getTrustDecayRecoveryHistory(entityId, limit);
+    res.json({ success: true, data: history });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const processDecayBatch = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    // Only admins can trigger batch processing
+    if (req.user!.role !== 'ADMIN') {
+      return res.status(403).json({ success: false, error: { message: 'Insufficient permissions' } });
+    }
+
+    const batchSize = parseInt(req.body.batchSize) || 100;
+    const maxDays = parseInt(req.body.maxDays) || 365;
+
+    const result = await trustService.processTrustDecayBatch({ batchSize, maxDays });
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+};
+

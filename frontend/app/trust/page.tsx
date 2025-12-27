@@ -2,17 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { TrustScore, TrustEvent } from '@/lib/api/trust';
-import { useTrustScore, useTrustHistory, useTrustExplanation } from '@/lib/queries';
+import { TrustScore, TrustEvent, DecayRecoveryEvent } from '@/lib/api/trust';
+import { useTrustScore, useTrustHistory, useTrustExplanation, useDecayRecoveryHistory } from '@/lib/queries';
 import { useAuthStore } from '@/lib/stores/auth.store';
 
 export default function TrustPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'score' | 'history' | 'explain'>('score');
+  const [activeTab, setActiveTab] = useState<'score' | 'history' | 'decay-recovery' | 'explain'>('score');
 
   const { data: scoreData, isLoading: scoreLoading, error: scoreError } = useTrustScore(user?.id || '');
   const { data: historyData, isLoading: historyLoading, error: historyError } = useTrustHistory(user?.id || '');
+  const { data: decayRecoveryData, isLoading: decayRecoveryLoading, error: decayRecoveryError } = useDecayRecoveryHistory(user?.id || '');
   const { data: explanationData, isLoading: explanationLoading, error: explanationError } = useTrustExplanation(user?.id || '');
 
   // Redirect if not authenticated
@@ -26,10 +27,20 @@ export default function TrustPage() {
   const trustScore: TrustScore | null = scoreData?.data || null;
   const historyDataArray = historyData?.data?.events || historyData?.data || [];
   const history: TrustEvent[] = Array.isArray(historyDataArray) ? historyDataArray : [];
+  const decayRecoveryDataArray = decayRecoveryData?.data || [];
+  const decayRecoveryHistory: DecayRecoveryEvent[] = Array.isArray(decayRecoveryDataArray) ? decayRecoveryDataArray : [];
   const explanation = explanationData?.data || null;
 
-  const isLoading = activeTab === 'score' ? scoreLoading : activeTab === 'history' ? historyLoading : explanationLoading;
-  const error = activeTab === 'score' ? scoreError : activeTab === 'history' ? historyError : explanationError;
+  const isLoading = 
+    activeTab === 'score' ? scoreLoading : 
+    activeTab === 'history' ? historyLoading : 
+    activeTab === 'decay-recovery' ? decayRecoveryLoading :
+    explanationLoading;
+  const error = 
+    activeTab === 'score' ? scoreError : 
+    activeTab === 'history' ? historyError : 
+    activeTab === 'decay-recovery' ? decayRecoveryError :
+    explanationError;
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'text-green-600';
@@ -90,6 +101,16 @@ export default function TrustPage() {
               }`}
             >
               History
+            </button>
+            <button
+              onClick={() => setActiveTab('decay-recovery')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'decay-recovery'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Decay & Recovery
             </button>
             <button
               onClick={() => setActiveTab('explain')}
@@ -161,16 +182,69 @@ export default function TrustPage() {
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="font-medium">{event.eventType || 'TRUST_UPDATED'}</p>
-                        <p className="text-sm text-gray-600">{event.explanation || 'Trust score updated'}</p>
+                        <p className="text-sm text-gray-600">{event.reason || event.explanation || 'Trust score updated'}</p>
                         <p className="text-xs text-gray-500 mt-1">
                           {new Date(event.createdAt).toLocaleString()}
                         </p>
                       </div>
-                      {event.scoreChange !== undefined && (
-                        <div className={`text-lg font-semibold ${event.scoreChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {event.scoreChange >= 0 ? '+' : ''}{event.scoreChange.toFixed(1)}
+                      {event.changeAmount !== undefined && (
+                        <div className={`text-lg font-semibold ${event.changeAmount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {event.changeAmount >= 0 ? '+' : ''}{event.changeAmount.toFixed(1)}
                         </div>
                       )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'decay-recovery' && (
+          <div className="bg-white shadow rounded-lg p-6">
+            <h2 className="text-xl font-semibold mb-4">Decay & Recovery History</h2>
+            {decayRecoveryHistory.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500 mb-4">No decay or recovery events found.</p>
+                <p className="text-sm text-gray-400">
+                  Decay events occur when you're inactive for 30+ days. Recovery events occur when you become active again.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {decayRecoveryHistory.map((event) => (
+                  <div 
+                    key={event.id} 
+                    className={`border-l-4 pl-4 py-3 rounded-r ${
+                      event.eventType === 'TRUST_RECOVERY_EVENT' 
+                        ? 'border-green-500 bg-green-50' 
+                        : 'border-red-500 bg-red-50'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                            event.eventType === 'TRUST_RECOVERY_EVENT'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {event.eventType === 'TRUST_RECOVERY_EVENT' ? 'Recovery' : 'Decay'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 font-medium">{event.reason}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(event.createdAt).toLocaleString()}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Score: {event.previousScore.toFixed(1)} → {event.newScore.toFixed(1)}
+                        </p>
+                      </div>
+                      <div className={`text-2xl font-bold ${
+                        event.changeAmount >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {event.changeAmount >= 0 ? '+' : ''}{event.changeAmount.toFixed(1)}
+                      </div>
                     </div>
                   </div>
                 ))}

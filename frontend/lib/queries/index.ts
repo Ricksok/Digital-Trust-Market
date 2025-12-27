@@ -9,6 +9,40 @@ export {
   useConnectWallet,
 } from './auth.queries';
 
+// Onboarding queries
+export {
+  useRegisterOnboarding,
+  useOnboardingStatus,
+  useUserProfile,
+  useSubmitBusinessVerification,
+  useLinkMembership,
+  useCompleteOnboarding,
+} from './onboarding.queries';
+
+// Vendor Central queries
+export {
+  useVendorDashboard,
+} from './vendor-central.queries';
+
+// Learning queries
+export {
+  useCourses,
+  useCourse,
+  useLearningProfile,
+  useEnrollInCourse,
+  useUpdateProgress,
+  useCompleteCourse,
+  useFeatureUnlock,
+  useSubmitQuiz,
+  // Admin queries
+  useAllCourses,
+  useCreateCourse,
+  useUpdateCourse,
+  usePublishCourse,
+  useUnpublishCourse,
+  useDeleteCourse,
+} from './learning.queries';
+
 // Project queries
 export {
   useProjects,
@@ -77,7 +111,8 @@ export {
   useTrustScore,
   useTrustHistory,
   useTrustExplanation,
-  useUpdateTrustScore,
+  useDecayRecoveryHistory,
+  useTrackActivity,
 } from './trust.queries';
 
 // Analytics queries
@@ -109,4 +144,20 @@ export {
   useGenerateFinancialReport,
   usePublishInvestorReport,
 } from './investor-reporting.queries';
+
+// Cart queries
+export {
+  useCart,
+  useAddToCart,
+  useUpdateCartItem,
+  useRemoveFromCart,
+  useClearCart,
+} from './cart.queries';
+
+// Checkout queries
+export {
+  useOrders,
+  useOrder,
+  useCheckout,
+} from './checkout.queries';
 

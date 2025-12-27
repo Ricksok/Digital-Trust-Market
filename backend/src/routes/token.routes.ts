@@ -1,12 +1,14 @@
 import express from 'express';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/auth.middleware';
+import { requirePermission } from '../middleware/rbac.middleware';
 import * as tokenController from '../controllers/token.controller';
 
 const router = express.Router();
 
 // Token management routes
 router.get('/tokens/:identifier', authenticate, tokenController.getToken);
-router.post('/tokens/initialize', authenticate, authorize('ADMIN'), tokenController.initializeTokens);
+// Initialize tokens - requires system.configure permission (admin)
+router.post('/tokens/initialize', authenticate, requirePermission('system.configure'), tokenController.initializeTokens);
 
 // Balance routes
 router.get('/balances/:entityId?', authenticate, tokenController.getAllBalances);

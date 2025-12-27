@@ -29,14 +29,28 @@ model User {
   registrationNumber String? // For registered entities
   legalStructure     String? // LLC, CORPORATION, COOPERATIVE, etc.
 
+  // Onboarding Fields (Feature 0.1)
+  onboardingCompleted Boolean @default(false)
+  onboardingStep      String? // REGISTRATION, KYC_PENDING, KYC_APPROVED, ROLE_ASSIGNED, COMPLETE
+  transactionCap      Float? // Initial cap from DAE (Dynamic Analytics Engine)
+  trustBand           String? // Initial trust band from DTE (Dynamic Trust Engine)
+
+  // Activity Tracking (Trust Decay/Recovery)
+  lastActivityAt DateTime? // Last time user performed any activity (login, transaction, etc.)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
   kycRecord                KYCRecord?
+  businessVerification     BusinessVerification?
+  membershipLinkages       MembershipLinkage[]
   projects                 Project[]
   investments              Investment[]
   payments                 Payment[]
+  cartItems                CartItem[]
+  orders                   Order[]
+  orderItems               OrderItem[]
   trustScore               TrustScore?
   behaviorMetrics          BehaviorMetrics?
   readinessMetrics         ReadinessMetrics?
@@ -49,12 +63,17 @@ model User {
   tokenBalances            TokenBalance[] // Token holdings
   tokenTransactionsFrom    TokenTransaction[]    @relation("TokenTransactionsFrom") // Token transactions sent
   tokenTransactionsTo      TokenTransaction[]    @relation("TokenTransactionsTo") // Token transactions received
+  enrollments              Enrollment[] // Learning Exchange enrollments
+  credentials              Credential[] // Learning credentials earned
+  learningOutcomes         LearningOutcome[] // Features unlocked through learning
+  quizAttempts             QuizAttempt[] // Quiz attempts
   governanceProposals      GovernanceProposal[] // Proposals created
   governanceVotes          GovernanceVote[] // Votes cast
   stakes                   Stake[] // Staking positions
   rewardsReceived          RewardDistribution[] // Rewards received
   regulatoryReportsCreated RegulatoryReport[]    @relation("RegulatoryReportCreator") // Reports created
   investorReports          InvestorReport[]      @relation("InvestorReports") // Investor reports
+  userRoles                UserRole[] // RBAC role assignments
 
   @@index([email])
   @@index([walletAddress])
@@ -80,6 +99,55 @@ model KYCRecord {
 
   @@index([status])
   @@index([userId])
+}
+
+// Business Verification Model (Feature 0.1)
+model BusinessVerification {
+  id                 String    @id @default(uuid())
+  userId             String    @unique
+  registrationNumber String
+  companyName        String
+  legalStructure     String // LLC, CORPORATION, COOPERATIVE, PARTNERSHIP, etc.
+  registrationDate   DateTime?
+  expiryDate         DateTime?
+  documentUrl        String?
+  status             String    @default("PENDING") // PENDING, APPROVED, REJECTED, EXPIRED
+  verifiedAt         DateTime?
+  verifiedBy         String? // Admin user ID who verified
+  rejectionReason    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([registrationNumber])
+  @@index([userId])
+}
+
+// Membership Linkage Model (Feature 0.1)
+model MembershipLinkage {
+  id               String    @id @default(uuid())
+  userId           String
+  organizationType String // COOP, SACCO
+  organizationId   String // ID of the co-op/SACCO (can be UUID or external ID)
+  membershipNumber String
+  status           String    @default("PENDING") // PENDING, VERIFIED, REJECTED, EXPIRED
+  verifiedAt       DateTime?
+  verifiedBy       String? // Admin user ID who verified
+  rejectionReason  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationType, organizationId])
+  @@index([status])
+  @@index([membershipNumber])
+  @@index([userId])
+  @@index([organizationType, organizationId])
 }
 
 model Project {
@@ -109,6 +177,8 @@ model Project {
   escrowContracts   EscrowContract[]
   auctions          Auction[] // Capital auctions for this project
   guaranteeRequests GuaranteeRequest[] // Guarantee requests for this project
+  cartItems         CartItem[]
+  orderItems        OrderItem[]
 
   @@index([fundraiserId])
   @@index([status])
@@ -153,9 +223,130 @@ model Payment {
   // Relations
   user       User        @relation(fields: [userId], references: [id])
   investment Investment? @relation(fields: [investmentId], references: [id])
+  order      Order?      @relation("OrderPayment")
 
   @@index([userId])
   @@index([investmentId])
+  @@index([status])
+}
+
+// ============================================
+// Marketplace Cart & Orders (Phase 5)
+// ============================================
+
+model CartItem {
+  id        String @id @default(uuid())
+  userId    String
+  projectId String
+  quantity  Int    @default(1)
+
+  // Pricing (snapshot at add time)
+  unitPrice  Float // Price per unit when added to cart
+  totalPrice Float // quantity * unitPrice
+
+  // Metadata
+  metadata String? // JSON stored as string
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
+}
+
+model Order {
+  id          String @id @default(uuid())
+  userId      String
+  orderNumber String @unique // Human-readable order number
+
+  // Order Status
+  status String @default("PENDING") // PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED, REFUNDED
+
+  // Pricing
+  subtotal Float // Sum of order items
+  tax      Float @default(0)
+  shipping Float @default(0)
+  discount Float @default(0)
+  total    Float // subtotal + tax + shipping - discount
+
+  currency String @default("KES")
+
+  // Shipping Information
+  shippingAddress String? // JSON stored as string
+  billingAddress  String? // JSON stored as string
+
+  // Payment
+  paymentMethod String?
+  paymentStatus String    @default("PENDING") // PENDING, PAID, FAILED, REFUNDED
+  paymentId     String?   @unique // Reference to Payment record
+  paidAt        DateTime?
+
+  // Fulfillment
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+  trackingNumber String?
+
+  // Notes
+  notes    String?
+  metadata String? // JSON stored as string
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+  payment    Payment?    @relation("OrderPayment", fields: [paymentId], references: [id])
+
+  @@index([userId])
+  @@index([orderNumber])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id        String @id @default(uuid())
+  orderId   String
+  projectId String
+
+  // Product Details (snapshot at order time)
+  productTitle       String
+  productDescription String?
+  productImage       String?
+
+  // Pricing
+  unitPrice  Float
+  quantity   Int
+  totalPrice Float // unitPrice * quantity
+
+  // Status
+  status String @default("PENDING") // PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED, REFUNDED
+
+  // Fulfillment
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+  trackingNumber String?
+
+  // Metadata
+  metadata String? // JSON stored as string
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id])
+  User    User?   @relation(fields: [userId], references: [id])
+  userId  String?
+
+  @@index([orderId])
+  @@index([projectId])
   @@index([status])
 }
 
@@ -218,7 +409,7 @@ model ComplianceRecord {
 }
 
 model AuditLog {
-  id                 String            @id @default(uuid())
+  id                 String   @id @default(uuid())
   userId             String?
   action             String
   entityType         String
@@ -226,11 +417,11 @@ model AuditLog {
   changes            String? // JSON stored as string
   ipAddress          String?
   userAgent          String?
-  createdAt          DateTime          @default(now())
+  createdAt          DateTime @default(now())
   regulatoryReportId String?
 
   // Relations
-  regulatoryReport   RegulatoryReport? @relation(fields: [regulatoryReportId], references: [id], onDelete: Cascade)
+  regulatoryReport RegulatoryReport? @relation(fields: [regulatoryReportId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([entityType, entityId])
@@ -1224,3 +1415,334 @@ model InvestorReportImpact {
   @@index([reportId])
   @@index([dimension])
 }
+
+// Permission Model - Defines what actions can be performed
+model Permission {
+  id          String  @id @default(uuid())
+  name        String  @unique // e.g., "projects.create", "investments.view"
+  resource    String // e.g., "projects", "investments", "reports"
+  action      String // e.g., "create", "view", "update", "delete", "approve"
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@index([resource])
+  @@index([action])
+  @@index([resource, action])
+  @@map("permissions")
+}
+
+// Role Model - Defines who can perform actions
+model Role {
+  id          String  @id @default(uuid())
+  name        String  @unique // e.g., "ADMIN", "INVESTOR", "FUNDRAISER"
+  displayName String // e.g., "Administrator", "Investor", "Fundraiser"
+  description String?
+  isSystem    Boolean @default(false) // System roles cannot be deleted
+  isActive    Boolean @default(true)
+
+  // Hierarchy (optional - for role inheritance)
+  parentRoleId String?
+  parentRole   Role?   @relation("RoleHierarchy", fields: [parentRoleId], references: [id])
+  childRoles   Role[]  @relation("RoleHierarchy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@index([name])
+  @@index([isActive])
+  @@map("roles")
+}
+
+// Role-Permission Mapping - Links roles to permissions
+model RolePermission {
+  id           String @id @default(uuid())
+  roleId       String
+  permissionId String
+
+  // Conditions (optional - for dynamic permissions)
+  // JSON: {"entityType": "SME_STARTUP", "minTrustScore": 50}
+  conditions String?
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// User-Role Assignment - Assigns roles to users
+model UserRole {
+  id     String @id @default(uuid())
+  userId String
+  roleId String
+
+  // Context (optional - for contextual roles)
+  contextType String? // e.g., "PROJECT", "INVESTMENT", "GLOBAL"
+  contextId   String? // ID of the context (project ID, etc.)
+
+  // Assignment metadata
+  assignedBy String? // User ID who assigned this role
+  assignedAt DateTime  @default(now())
+  expiresAt  DateTime? // Optional expiration
+  isActive   Boolean   @default(true)
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, contextType, contextId])
+  @@index([userId])
+  @@index([roleId])
+  @@index([contextType, contextId])
+  @@index([isActive])
+  @@map("user_roles")
+}
+
+// Permission Audit Log - Tracks all permission checks
+model PermissionAudit {
+  id         String  @id @default(uuid())
+  userId     String
+  permission String // Permission name
+  resource   String? // Resource accessed
+  resourceId String? // Specific resource ID
+  action     String // ALLOWED, DENIED
+  reason     String? // Why denied/allowed
+  ipAddress  String?
+  userAgent  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([permission])
+  @@index([createdAt])
+  @@index([action])
+  @@map("permission_audits")
+}
+
+// Update User model to include UserRole relation
+// Add this to the existing User model:
+// userRoles      UserRole[] // RBAC role assignments
+
+// Learning Exchange Engine (LEE) Models
+// ============================================
+
+model Course {
+  id          String  @id @default(uuid())
+  title       String
+  description String? @db.Text
+  category    String // VENDOR_ONBOARDING, AUCTION_BEST_PRACTICES, QUALITY_LOGISTICS, TAX_INVOICING, DISPUTE_PREVENTION, COMPLIANCE
+  level       String  @default("BEGINNER") // BEGINNER, INTERMEDIATE, ADVANCED
+  duration    Int // Duration in minutes
+  publisher   String // PLATFORM, PARTNER, REGULATOR
+  publisherId String? // ID of partner/regulator if not platform
+
+  // Content
+  contentUrl String? // URL to course content
+  videoUrl   String?
+  materials  String? // JSON array of material URLs
+
+  // Requirements & Outcomes
+  prerequisites  String? // JSON array of course IDs
+  unlocks        String? // JSON array of permissions/features unlocked
+  credentialType String? // CERTIFICATE, BADGE, CERTIFICATION
+
+  // Status
+  status     String  @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
+  isRequired Boolean @default(false) // Required for certain roles/features
+  isActive   Boolean @default(true)
+
+  // Metadata
+  version    String? @default("1.0")
+  expiryDays Int? // Credential expiry in days (null = no expiry)
+  metadata   String? // JSON stored as string
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  publishedAt DateTime?
+
+  // Relations
+  enrollments      Enrollment[]
+  credentials      Credential[]
+  quizzes          Quiz[]
+  learningOutcomes LearningOutcome[]
+
+  @@index([category])
+  @@index([status])
+  @@index([publisher])
+  @@index([isRequired])
+}
+
+model Enrollment {
+  id       String @id @default(uuid())
+  userId   String
+  courseId String
+
+  // Progress
+  status      String    @default("ENROLLED") // ENROLLED, IN_PROGRESS, COMPLETED, FAILED, EXPIRED
+  progress    Float     @default(0) // 0-100
+  startedAt   DateTime?
+  completedAt DateTime?
+  expiresAt   DateTime? // Enrollment expiry if course has time limit
+
+  // Assessment
+  quizScore  Float? // Final quiz score if applicable
+  passedQuiz Boolean @default(false)
+
+  // Metadata
+  metadata String? // JSON stored as string
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course       Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  credentials  Credential[]
+  quizAttempts QuizAttempt[]
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@index([status])
+  @@index([completedAt])
+}
+
+model Credential {
+  id           String @id @default(uuid())
+  userId       String
+  courseId     String
+  enrollmentId String
+
+  // Credential Details
+  type     String // CERTIFICATE, BADGE, CERTIFICATION
+  title    String
+  issuer   String // PLATFORM, PARTNER, REGULATOR
+  issuerId String? // ID of issuer if not platform
+
+  // Validity
+  issuedAt     DateTime  @default(now())
+  expiresAt    DateTime? // null = no expiry
+  isExpired    Boolean   @default(false)
+  isRevoked    Boolean   @default(false)
+  revokedAt    DateTime?
+  revokeReason String?
+
+  // Verification
+  credentialNumber String  @unique // Unique credential identifier
+  verificationUrl  String? // URL for credential verification
+
+  // Metadata
+  metadata String? // JSON stored as string
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course     Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([courseId])
+  @@index([type])
+  @@index([isExpired])
+  @@index([isRevoked])
+  @@index([credentialNumber])
+}
+
+// Add relation to Enrollment for QuizAttempt
+// Update Enrollment model to include quizAttempts
+
+model Quiz {
+  id        String @id @default(uuid())
+  courseId  String
+  title     String
+  questions String // JSON array of questions stored as string
+
+  // Settings
+  passingScore    Float @default(70) // 0-100
+  timeLimit       Int? // Time limit in minutes (null = no limit)
+  attemptsAllowed Int   @default(3)
+
+  // Status
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  course   Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  attempts QuizAttempt[]
+
+  @@index([courseId])
+}
+
+model QuizAttempt {
+  id           String  @id @default(uuid())
+  quizId       String
+  userId       String
+  enrollmentId String?
+
+  // Results
+  score   Float // 0-100
+  passed  Boolean
+  answers String // JSON array of answers stored as string
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  // Relations
+  quiz       Quiz        @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollment Enrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([quizId])
+  @@index([userId])
+  @@index([enrollmentId])
+  @@index([passed])
+}
+
+model LearningOutcome {
+  id           String  @id @default(uuid())
+  userId       String
+  courseId     String?
+  credentialId String?
+
+  // What was unlocked
+  unlockedFeature String // Permission or feature identifier
+  unlockedAt      DateTime @default(now())
+
+  // Status
+  isActive     Boolean   @default(true)
+  revokedAt    DateTime?
+  revokeReason String?
+
+  // Metadata
+  metadata String? // JSON stored as string
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course? @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([unlockedFeature])
+  @@index([isActive])
+}
+
+// Fix QuizAttempt enrollment relation

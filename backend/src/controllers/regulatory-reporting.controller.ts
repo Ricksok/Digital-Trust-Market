@@ -1,7 +1,8 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import * as regulatoryReportingService from '../services/regulatory-reporting.service';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/auth.middleware';
+import { requirePermission } from '../middleware/rbac.middleware';
 
 /**
  * Generate Capital Markets Report
@@ -9,7 +10,7 @@ import { authenticate, authorize } from '../middleware/auth.middleware';
  */
 export const generateCapitalMarketsReport = [
   authenticate,
-  authorize('ADMIN'),
+  requirePermission('reports.regulatory.generate'),
   async (req: AuthRequest, res: Response) => {
     try {
       const { period } = req.body;
@@ -43,7 +44,7 @@ export const generateCapitalMarketsReport = [
  */
 export const generateSACCOReport = [
   authenticate,
-  authorize('ADMIN'),
+  requirePermission('reports.regulatory.generate'),
   async (req: AuthRequest, res: Response) => {
     try {
       const { period } = req.body;
@@ -77,7 +78,7 @@ export const generateSACCOReport = [
  */
 export const generateTaxReport = [
   authenticate,
-  authorize('ADMIN'),
+  requirePermission('reports.regulatory.generate'),
   async (req: AuthRequest, res: Response) => {
     try {
       const { period } = req.body;
@@ -111,7 +112,7 @@ export const generateTaxReport = [
  */
 export const generateAMLReport = [
   authenticate,
-  authorize('ADMIN'),
+  requirePermission('reports.regulatory.generate'),
   async (req: AuthRequest, res: Response) => {
     try {
       const { period } = req.body;
@@ -145,7 +146,7 @@ export const generateAMLReport = [
  */
 export const getRegulatoryReports = [
   authenticate,
-  authorize('ADMIN'),
+  requirePermission('reports.regulatory.generate'),
   async (req: AuthRequest, res: Response) => {
     try {
       const query = req.query as { reportType?: string; regulatorType?: string; period?: string; status?: string };
@@ -177,7 +178,7 @@ export const getRegulatoryReports = [
  */
 export const getRegulatoryReport = [
   authenticate,
-  authorize('ADMIN'),
+  requirePermission('reports.regulatory.generate'),
   async (req: AuthRequest, res: Response) => {
     try {
       const params = req.params as { id: string };
@@ -204,7 +205,7 @@ export const getRegulatoryReport = [
  */
 export const submitReport = [
   authenticate,
-  authorize('ADMIN'),
+  requirePermission('reports.regulatory.submit'),
   async (req: AuthRequest, res: Response) => {
     try {
       const params = req.params as { id: string };

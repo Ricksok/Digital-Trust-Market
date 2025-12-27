@@ -26,6 +26,11 @@ import stakingRoutes from './routes/staking.routes';
 import rewardRoutes from './routes/reward.routes';
 import regulatoryReportingRoutes from './routes/regulatory-reporting.routes';
 import investorReportingRoutes from './routes/investor-reporting.routes';
+import onboardingRoutes from './routes/onboarding.routes';
+import learningRoutes from './routes/learning.routes';
+import vendorCentralRoutes from './routes/vendor-central.routes';
+import cartRoutes from './routes/cart.routes';
+import checkoutRoutes from './routes/checkout.routes';
 
 dotenv.config();
 
@@ -89,6 +94,11 @@ app.use('/api/staking', stakingRoutes);
 app.use('/api/rewards', rewardRoutes);
 app.use('/api/regulatory-reporting', regulatoryReportingRoutes);
 app.use('/api/investor-reporting', investorReportingRoutes);
+app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/learning', learningRoutes);
+app.use('/api/vendor-central', vendorCentralRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/checkout', checkoutRoutes);
 
 // Error handling
 app.use(errorHandler);
